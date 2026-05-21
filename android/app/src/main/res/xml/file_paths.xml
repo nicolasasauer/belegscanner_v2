@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Konfiguration der FileProvider-Pfade für Kamera- und Galeriebilder -->
+<paths>
+    <!-- Externe App-spezifische Dateien (z. B. Pictures-Ordner) -->
+    <external-files-path name="images" path="Pictures"/>
+    <!-- App-interner Cache (z. B. temporäre Scan-Dateien) -->
+    <cache-path name="cache" path="scan_cache/"/>
+    <!-- App-interne Dokumentenverzeichnis (persistierte Belegbilder):
+         Entspricht getApplicationDocumentsDirectory() auf Android.
+         Notwendig für Samsung Auto Blocker / Android 16 FileProvider-Kompatibilität. -->
+    <files-path name="app_flutter" path="app_flutter/"/>
+</paths>

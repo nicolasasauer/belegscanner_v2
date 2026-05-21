@@ -1,0 +1,106 @@
+// =============================================================================
+// home_page.dart – Änderungen für KI-Integration
+// =============================================================================
+//
+// Anleitung: Folgende Änderungen müssen in lib/pages/home_page.dart eingebaut
+// werden. Die Änderungen sind minimal und non-breaking.
+// =============================================================================
+
+// ── 1. Imports ergänzen (oben in der Datei, nach den bestehenden Imports) ───
+
+import '../pages/model_setup_page.dart';   // NEU
+import '../widgets/ai_status_badge.dart';  // NEU
+import '../services/gemma_service.dart';   // NEU
+
+// ── 2. _HomePageState.initState() – GemmaService nach loadSettings() ────────
+//
+// Bereits vorhandener Code:
+//
+//   Future.delayed(const Duration(milliseconds: 500), () async {
+//     await _processorService.loadSettings();          // lädt auch GemmaService
+//     await _processorService.markInterruptedAsFailed();
+//     await _loadReceipts();
+//   });
+//
+// KEINE Änderung nötig: _processorService.loadSettings() ruft bereits
+// GemmaService.instance.loadSettings() auf (siehe processor_service.dart NEU).
+// Wenn du GemmaService früher initialisieren möchtest, kannst du optional
+// ergänzen:
+//
+//   await GemmaService.instance.ensureReady();  // Optional: Vorladen
+//
+// ── 3. AppBar – AiStatusBadge als Action-Button ───────────────────────────
+//
+// Suche in _HomePageState.build() nach dem AppBar-Widget und ergänze actions:
+//
+// VORHER:
+//   AppBar(
+//     title: const Text('Belegliste'),
+//     actions: [
+//       // ... bestehende Actions (z.B. Sortierung, Filter) ...
+//     ],
+//   )
+//
+// NACHHER:
+//   AppBar(
+//     title: const Text('Belegliste'),
+//     actions: [
+//       // NEU: KI-Status-Badge und Link zur Einrichtungsseite
+//       AiStatusBadge(
+//         onTap: () => Navigator.push(
+//           context,
+//           MaterialPageRoute(builder: (_) => const ModelSetupPage()),
+//         ).then((_) => setState(() {})), // State nach Rückkehr aktualisieren
+//       ),
+//       // ... bestehende Actions ...
+//     ],
+//   )
+//
+// ── 4. Einstellungs-Menü – Link zur KI-Einrichtung ────────────────────────
+//
+// Falls du ein PopupMenuButton oder eine Einstellungsseite hast, füge dort
+// einen Eintrag hinzu:
+//
+//   PopupMenuItem(
+//     child: const ListTile(
+//       leading: Icon(Icons.auto_awesome_outlined),
+//       title: Text('KI-Einrichtung'),
+//       dense: true,
+//     ),
+//     onTap: () => Navigator.push(
+//       context,
+//       MaterialPageRoute(builder: (_) => const ModelSetupPage()),
+//     ).then((_) => setState(() {})),
+//   ),
+//
+// =============================================================================
+// VOLLSTÄNDIGES BEISPIEL für eine minimale AppBar-Integration:
+// =============================================================================
+
+/*
+AppBar _buildAppBar() {
+  return AppBar(
+    title: const Text('Belegliste'),
+    centerTitle: false,
+    actions: [
+      // KI-Status-Badge (NEU)
+      AiStatusBadge(
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const ModelSetupPage()),
+          ).then((_) {
+            // UI aktualisieren, falls sich KI-Status geändert hat
+            if (mounted) setState(() {});
+          });
+        },
+      ),
+      // Bestehende Actions hier...
+      IconButton(
+        icon: Icon(_sortAscending ? Icons.arrow_upward : Icons.arrow_downward),
+        onPressed: _toggleSort,
+      ),
+    ],
+  );
+}
+*/

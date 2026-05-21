@@ -1,0 +1,359 @@
+import 'dart:async';
+import 'dart:io';
+
+import 'package:flutter/foundation.dart';
+import 'package:flutter_gemma/flutter_gemma.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+// ---------------------------------------------------------------------------
+// SharedPreferences-Schlüssel
+// ---------------------------------------------------------------------------
+
+const String kGemmaEnabledKey = 'gemma_ai_enabled';
+const String kGemmaModelPathKey = 'gemma_model_path';
+const String kGemmaTemperatureKey = 'gemma_temperature';
+
+// ---------------------------------------------------------------------------
+// GemmaService
+// ---------------------------------------------------------------------------
+
+/// Singleton-Service für die Verwaltung des lokalen Gemma-Modells.
+///
+/// Kapselt Initialisierung, Inferenz und Persistenz der Modellkonfiguration.
+/// Das Modell wird lazy geladen: erst beim ersten Aufruf von [ensureReady]
+/// (oder [categorizeItems]) wird es tatsächlich in den Speicher geladen.
+///
+/// **Privacy-first**: Alle Inferenzen laufen vollständig lokal auf dem Gerät.
+/// Es findet kein Netzwerk-Traffic statt.
+///
+/// **Nutzung:**
+/// ```dart
+/// final gemma = GemmaService.instance;
+/// await gemma.loadSettings();
+///
+/// if (gemma.isEnabled) {
+///   await gemma.ensureReady();
+///   final cats = await gemma.categorizeItems(items, availableCategories);
+/// }
+/// ```
+class GemmaService {
+  GemmaService._();
+
+  /// Singleton-Instanz.
+  static final GemmaService instance = GemmaService._();
+
+  // ── Zustand ──────────────────────────────────────────────────────────────
+
+  /// Ob KI-Kategorisierung in den Einstellungen aktiviert ist.
+  bool isEnabled = false;
+
+  /// Pfad zur Gemma-Modelldatei (.task-Format von MediaPipe).
+  String? modelPath;
+
+  /// Inferenz-Temperatur (0.0–1.0). Niedrig = deterministischer Output.
+  double temperature = 0.1;
+
+  /// Ob das Modell gerade geladen und bereit für Inferenz ist.
+  bool get isReady => _isInitialized && _session != null;
+
+  /// Kurze Status-Beschreibung für die UI.
+  String get statusMessage => _statusMessage;
+
+  bool _isInitialized = false;
+  InferenceModel? _model;
+  InferenceSession? _session;
+  String _statusMessage = 'Nicht initialisiert';
+
+  // ── Einstellungen ─────────────────────────────────────────────────────────
+
+  /// Liest alle gespeicherten Einstellungen aus den [SharedPreferences].
+  Future<void> loadSettings() async {
+    final prefs = await SharedPreferences.getInstance();
+    isEnabled = prefs.getBool(kGemmaEnabledKey) ?? false;
+    modelPath = prefs.getString(kGemmaModelPathKey);
+    temperature = prefs.getDouble(kGemmaTemperatureKey) ?? 0.1;
+    debugPrint('[GemmaService] Einstellungen geladen: '
+        'enabled=$isEnabled, modelPath=$modelPath');
+  }
+
+  /// Speichert alle aktuellen Einstellungen in [SharedPreferences].
+  Future<void> saveSettings() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(kGemmaEnabledKey, isEnabled);
+    if (modelPath != null) {
+      await prefs.setString(kGemmaModelPathKey, modelPath!);
+    } else {
+      await prefs.remove(kGemmaModelPathKey);
+    }
+    await prefs.setDouble(kGemmaTemperatureKey, temperature);
+  }
+
+  // ── Modell-Lifecycle ──────────────────────────────────────────────────────
+
+  /// Stellt sicher, dass das Modell geladen ist.
+  ///
+  /// Gibt [true] zurück, wenn das Modell nach dem Aufruf bereit ist.
+  /// Gibt [false] zurück bei Fehler oder wenn kein Modell konfiguriert ist.
+  /// Idempotent: ein bereits geladenes Modell wird nicht neu geladen.
+  Future<bool> ensureReady() async {
+    if (_isInitialized && _session != null) return true;
+    if (!isEnabled) {
+      _statusMessage = 'KI deaktiviert';
+      return false;
+    }
+    final path = modelPath;
+    if (path == null || !File(path).existsSync()) {
+      _statusMessage = 'Kein Modell gefunden – bitte Modell einrichten';
+      debugPrint('[GemmaService] Kein gültiger Modellpfad: $path');
+      return false;
+    }
+    return _loadModel(path);
+  }
+
+  /// Registriert eine neue Modelldatei (kopiert sie ins App-Verzeichnis,
+  /// wenn sie sich außerhalb davon befindet) und lädt das Modell.
+  ///
+  /// Gibt den permanenten Pfad zurück oder `null` bei Fehler.
+  Future<String?> installAndLoadModel(String sourcePath) async {
+    try {
+      _statusMessage = 'Modell wird installiert…';
+      final permanentPath = await _copyModelToAppDir(sourcePath);
+      if (permanentPath == null) return null;
+
+      modelPath = permanentPath;
+      await saveSettings();
+
+      final ok = await _loadModel(permanentPath);
+      return ok ? permanentPath : null;
+    } catch (e, st) {
+      debugPrint('[GemmaService] Fehler beim Installieren: $e\n$st');
+      _statusMessage = 'Fehler beim Installieren: $e';
+      return null;
+    }
+  }
+
+  /// Entlädt das Modell aus dem Speicher und setzt den Zustand zurück.
+  Future<void> unloadModel() async {
+    await _session?.close();
+    _session = null;
+    _model?.close();
+    _model = null;
+    _isInitialized = false;
+    _statusMessage = 'Modell entladen';
+    debugPrint('[GemmaService] Modell entladen.');
+  }
+
+  /// Löscht die installierte Modelldatei und setzt alle Einstellungen zurück.
+  Future<void> removeModel() async {
+    await unloadModel();
+    if (modelPath != null) {
+      try {
+        final f = File(modelPath!);
+        if (f.existsSync()) await f.delete();
+      } catch (e) {
+        debugPrint('[GemmaService] Modelldatei konnte nicht gelöscht werden: $e');
+      }
+    }
+    modelPath = null;
+    isEnabled = false;
+    await saveSettings();
+    _statusMessage = 'Kein Modell installiert';
+  }
+
+  // ── Inferenz ──────────────────────────────────────────────────────────────
+
+  /// Kategorisiert eine Liste von Artikelnamen mittels des lokalen Modells.
+  ///
+  /// Gibt eine parallele Liste von Kategorienamen zurück. Schlägt die Inferenz
+  /// fehl oder ist das Modell nicht bereit, gibt die Methode `null` zurück –
+  /// der Aufrufer soll in diesem Fall auf Keyword-Kategorisierung zurückfallen.
+  ///
+  /// **Beispiel:**
+  /// ```dart
+  /// final cats = await gemma.categorizeItems(
+  ///   ['Vollmilch 1L', 'Red Bull 250ml', 'Colgate Zahnpasta'],
+  ///   ['Lebensmittel', 'Getränke', 'Drogerie', 'Pfand', 'Sonstiges'],
+  /// );
+  /// // → ['Lebensmittel', 'Getränke', 'Drogerie']
+  /// ```
+  Future<List<String>?> categorizeItems(
+    List<String> items,
+    List<String> availableCategories,
+  ) async {
+    if (items.isEmpty) return [];
+
+    final ready = await ensureReady();
+    if (!ready) return null;
+
+    final prompt = _buildPrompt(items, availableCategories);
+    debugPrint('[GemmaService] Prompt (${prompt.length} Zeichen) wird gesendet…');
+
+    try {
+      final response = await _session!.getResponse(prompt);
+      debugPrint('[GemmaService] Antwort: $response');
+      return _parseResponse(response, items.length, availableCategories);
+    } catch (e, st) {
+      debugPrint('[GemmaService] Inferenz-Fehler: $e\n$st');
+      _statusMessage = 'Inferenz fehlgeschlagen: $e';
+      // Auf Fehler bei der Session: Session neu erstellen beim nächsten Aufruf
+      await _session?.close();
+      _session = null;
+      try {
+        _session = await _model!.createSession(
+          temperature: temperature,
+          topK: 1,
+          topP: 0.9,
+        );
+      } catch (_) {}
+      return null;
+    }
+  }
+
+  // ── Private Hilfsmethoden ─────────────────────────────────────────────────
+
+  Future<bool> _loadModel(String path) async {
+    try {
+      _statusMessage = 'Modell wird geladen…';
+      debugPrint('[GemmaService] Lade Modell von: $path');
+
+      await unloadModel();
+
+      _model = InferenceModel(
+        modelPath: path,
+        preferredBackend: PreferredBackend.gpu,
+        maxTokens: 512,
+      );
+
+      _session = await _model!.createSession(
+        temperature: temperature,
+        topK: 1,     // Greedy decoding: deterministisch, wichtig für JSON
+        topP: 0.9,
+      );
+
+      _isInitialized = true;
+      _statusMessage = 'Modell bereit ✓';
+      debugPrint('[GemmaService] Modell erfolgreich geladen.');
+      return true;
+    } catch (e, st) {
+      debugPrint('[GemmaService] Fehler beim Laden: $e\n$st');
+      _statusMessage = 'Ladefehler: $e';
+      _isInitialized = false;
+      _model = null;
+      _session = null;
+      return false;
+    }
+  }
+
+  Future<String?> _copyModelToAppDir(String sourcePath) async {
+    try {
+      final docsDir = await getApplicationDocumentsDirectory();
+      final modelsDir = Directory(p.join(docsDir.path, 'models', 'gemma'));
+      if (!modelsDir.existsSync()) {
+        await modelsDir.create(recursive: true);
+      }
+
+      final fileName = p.basename(sourcePath);
+      final destPath = p.join(modelsDir.path, fileName);
+
+      // Wenn Quelle und Ziel identisch sind, nichts tun
+      if (sourcePath == destPath) return destPath;
+
+      final src = File(sourcePath);
+      if (!src.existsSync()) {
+        _statusMessage = 'Quelldatei nicht gefunden';
+        return null;
+      }
+
+      debugPrint('[GemmaService] Kopiere Modell: $sourcePath → $destPath');
+      await src.copy(destPath);
+      return destPath;
+    } catch (e) {
+      debugPrint('[GemmaService] Kopierfehler: $e');
+      _statusMessage = 'Kopierfehler: $e';
+      return null;
+    }
+  }
+
+  /// Erstellt den Inferenz-Prompt für die Kategorisierung.
+  ///
+  /// Sehr kurz und präzise gehalten, da Gemma 2B ein begrenztes Context-Window
+  /// hat und kleine Modelle bei langen Prompts unzuverlässiger werden.
+  String _buildPrompt(List<String> items, List<String> categories) {
+    final catList = categories.join(', ');
+    final itemLines = items
+        .asMap()
+        .entries
+        .map((e) => '${e.key + 1}. ${e.value}')
+        .join('\n');
+
+    // Few-Shot-Prompt: 2 Beispiele geben dem Modell das Output-Format vor
+    return '''Du bist ein Kassenbon-Kategorisierer. Antworte NUR mit einem JSON-Array.
+
+Kategorien: $catList
+
+Beispiel:
+Artikel:
+1. Vollmilch 1L
+2. Red Bull 250ml
+3. Colgate Zahnpasta
+Antwort: ["Lebensmittel","Getränke","Drogerie"]
+
+Artikel:
+$itemLines
+Antwort:''';
+  }
+
+  /// Parst die JSON-Antwort des Modells.
+  ///
+  /// Ist die Antwort kein valides JSON-Array oder hat die falsche Länge,
+  /// wird versucht, so viele Kategorien wie möglich zu extrahieren. Fehlende
+  /// Einträge werden mit 'Sonstiges' aufgefüllt.
+  List<String>? _parseResponse(
+    String response,
+    int expectedCount,
+    List<String> validCategories,
+  ) {
+    // JSON-Array aus der Antwort extrahieren (Modelle generieren manchmal
+    // führende/nachfolgende Zeichen)
+    final jsonMatch = RegExp(r'\[.*?\]', dotAll: true).firstMatch(response);
+    if (jsonMatch == null) {
+      debugPrint('[GemmaService] Kein JSON-Array in Antwort gefunden.');
+      return null;
+    }
+
+    try {
+      final raw = jsonMatch.group(0)!;
+      // Einfaches Parsen ohne dart:convert-Import-Overhead via String-Split
+      // (JSON-Array enthält nur Strings, daher sicher)
+      final cleaned = raw
+          .replaceAll('[', '')
+          .replaceAll(']', '')
+          .split(',')
+          .map((s) => s.trim().replaceAll('"', '').replaceAll("'", ''))
+          .toList();
+
+      // Jede extrahierte Kategorie gegen die valide Liste prüfen
+      final result = <String>[];
+      for (int i = 0; i < expectedCount; i++) {
+        if (i < cleaned.length) {
+          final candidate = cleaned[i];
+          // Exakter Match (bevorzugt) oder case-insensitiver Fallback
+          final matched = validCategories.firstWhere(
+            (c) => c.toLowerCase() == candidate.toLowerCase(),
+            orElse: () => 'Sonstiges',
+          );
+          result.add(matched);
+        } else {
+          result.add('Sonstiges');
+        }
+      }
+      debugPrint('[GemmaService] Kategorien geparst: $result');
+      return result;
+    } catch (e) {
+      debugPrint('[GemmaService] Parse-Fehler: $e');
+      return null;
+    }
+  }
+}

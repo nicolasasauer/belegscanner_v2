@@ -1,0 +1,73 @@
+name: belegscanner_v2
+description: Eine Flutter-App zum Einscannen, Speichern und Filtern von Belegen.
+publish_to: 'none'
+version: 1.1.0+2
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Google ML Kit für OCR-Texterkennung
+  google_mlkit_text_recognition: ^0.13.1
+
+  # ── NEU: Lokale KI-Inferenz mit Gemma via MediaPipe ──────────────────────
+  # Kapselt das MediaPipe LLM Inference API für Flutter.
+  # Unterstützt Gemma 2B-IT und 3B-IT im .task-Format.
+  # Vollständig offline – kein Netzwerk-Traffic.
+  # https://pub.dev/packages/flutter_gemma
+  flutter_gemma: ^0.4.0
+
+  # Datum- und Währungsformatierung
+  intl: ^0.19.0
+
+  # Bildauswahl aus Galerie oder Kamera
+  image_picker: ^1.1.2
+
+  # UUID-Generierung für eindeutige IDs
+  uuid: ^4.4.2
+
+  # Lokale SQLite-Datenbank
+  sqflite: ^2.3.3+1
+
+  # Pfad-Utilities (wird von sqflite benötigt)
+  path: ^1.9.0
+
+  # Datei-Sharing (CSV-Export per E-Mail, Messenger, Cloud)
+  share_plus: ^10.1.0
+
+  # Bilder in der Gerätegalerie speichern
+  image_gallery_saver: ^2.0.3
+
+  # Datei-Auswahl (wird jetzt auch für Modell-Import genutzt)
+  file_picker: ^8.1.5
+
+  # Permanentes App-Verzeichnis für Belegbilder und Modell-Dateien
+  path_provider: ^2.1.4
+
+  # Persistente Einstellungen (max_concurrent_tasks, KI-Einstellungen)
+  shared_preferences: ^2.3.3
+
+  # SHA-256-Hashing für Duplikatserkennung
+  crypto: ^3.0.6
+
+  # Diagramme für das Statistik-Dashboard
+  fl_chart: ^0.69.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+  flutter_launcher_icons: ^0.13.1
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/icon.png"
+  adaptive_icon_foreground: "assets/icon.png"
+  adaptive_icon_background: "#3F51B5"
+
+flutter:
+  uses-material-design: true

@@ -1,0 +1,85 @@
+// App-Level Build-Konfiguration
+
+// plugins {} muss als erstes stehen (Gradle DSL-Anforderung)
+plugins {
+    id "com.android.application"
+    id "kotlin-android"
+    // Flutter Gradle Plugin muss nach den Android/Kotlin Plugins stehen
+    id "dev.flutter.flutter-gradle-plugin"
+}
+
+// Read version info written by the Flutter CLI into local.properties
+def localProperties = new Properties()
+def localPropertiesFile = rootProject.file('local.properties')
+if (localPropertiesFile.exists()) {
+    localPropertiesFile.withReader('UTF-8') { reader ->
+        localProperties.load(reader)
+    }
+}
+
+def flutterVersionCode = localProperties.getProperty('flutter.versionCode')
+if (flutterVersionCode == null) {
+    flutterVersionCode = '1'
+}
+
+def flutterVersionName = localProperties.getProperty('flutter.versionName')
+if (flutterVersionName == null) {
+    flutterVersionName = '1.0'
+}
+
+android {
+    namespace "com.nicolas.bong_scanner"
+    compileSdk 34
+    ndkVersion "25.1.8937393"
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = '17'
+    }
+
+    defaultConfig {
+        applicationId "com.nicolas.bong_scanner"
+        // Mindest-SDK für ML Kit ist 21
+        minSdk 21
+        targetSdk 34
+        versionCode flutterVersionCode.toInteger()
+        versionName flutterVersionName
+        // Nur 64-Bit arm64 laden; verhindert inkompatible 32-Bit-Bibliotheken auf S23
+        ndk {
+            abiFilters 'arm64-v8a'
+        }
+    }
+    signingConfigs {
+        release {
+            def keyPropertiesFile = rootProject.file('key.properties')
+            if (keyPropertiesFile.exists()) {
+                def keyProperties = new Properties()
+                keyPropertiesFile.withReader('UTF-8') { reader ->
+                    keyProperties.load(reader)
+                }
+                storeFile file(keyProperties['storeFile'])
+                storePassword keyProperties['storePassword']
+                keyAlias keyProperties['keyAlias']
+                keyPassword keyProperties['keyPassword']
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            signingConfig signingConfigs.release
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+
+}
+
+flutter {
+    source "../.."
+}

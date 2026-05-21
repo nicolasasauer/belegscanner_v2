@@ -1,0 +1,39 @@
+#!/usr/bin/env sh
+##############################################################################
+# Gradle start up script for UN*X
+##############################################################################
+
+if [ -z "$JAVA_HOME" ] ; then
+  echo "WARNING: JAVA_HOME is not set.  This environment variable is needed to run this program."
+fi
+
+# Determine the Java command to use to start the JVM.
+if [ -n "$JAVA_HOME" ] ; then
+  JAVACMD="$JAVA_HOME/bin/java"
+else
+  JAVACMD="java"
+fi
+
+if [ -n "$JAVA_HOME" ] && [ ! -x "$JAVACMD" ] ; then
+  JAVACMD="$JAVA_HOME/jre/bin/java"
+fi
+
+if [ ! -x "$JAVACMD" ] ; then
+  echo "ERROR: JAVA_HOME is set to an invalid directory: $JAVA_HOME"
+  echo "Please set the JAVA_HOME variable in your environment to match the location of your Java installation."
+  exit 1
+fi
+
+PRG="$0"
+while [ -h "$PRG" ] ; do
+  ls=`ls -ld "$PRG"`
+  link=`expr "$ls" : '.*-> \(.*\)$'`
+  if expr "$link" : '/.*' > /dev/null; then
+    PRG="$link"
+  else
+    PRG=`dirname "$PRG"`"/$link"
+  fi
+  done
+
+PRGDIR=`dirname "$PRG"`
+exec "$JAVACMD" -classpath "$PRGDIR/gradle/wrapper/gradle-wrapper.jar" org.gradle.wrapper.GradleWrapperMain "$@"
