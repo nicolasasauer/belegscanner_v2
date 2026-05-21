@@ -6,6 +6,7 @@ import 'package:flutter_gemma/flutter_gemma.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:crypto/crypto.dart';
 
 // ---------------------------------------------------------------------------
 // SharedPreferences-Schlüssel
@@ -128,6 +129,73 @@ class GemmaService {
     } catch (e, st) {
       debugPrint('[GemmaService] Fehler beim Installieren: $e\n$st');
       _statusMessage = 'Fehler beim Installieren: $e';
+      return null;
+    }
+  }
+
+  /// Lädt eine Modelldatei von `url` herunter, speichert sie temporär und
+  /// führt anschließend `installAndLoadModel` aus.
+  ///
+  /// `onProgress` erhält Werte 0.0–1.0 während des Downloads.
+  /// Gibt den permanenten Installationspfad oder `null` bei Fehler zurück.
+  Future<String?> downloadAndInstallModel(
+    String url, {
+    void Function(double progress)? onProgress,
+    String? expectedSha256,
+  }) async {
+    try {
+      _statusMessage = 'Modell wird heruntergeladen…';
+      final uri = Uri.parse(url);
+      final client = HttpClient();
+      final req = await client.getUrl(uri);
+      final res = await req.close();
+      if (res.statusCode != 200) {
+        _statusMessage = 'Download fehlgeschlagen: HTTP ${res.statusCode}';
+        return null;
+      }
+
+      final tmpDir = await getTemporaryDirectory();
+      final tmpPath = p.join(tmpDir.path, p.basename(uri.path));
+      final tmpFile = File(tmpPath);
+      final sink = tmpFile.openWrite();
+
+      final contentLength = res.contentLength;
+      var received = 0;
+      await for (final chunk in res) {
+        sink.add(chunk);
+        received += chunk.length;
+        if (contentLength > 0 && onProgress != null) {
+          try {
+            onProgress(received / contentLength);
+          } catch (_) {}
+        }
+      }
+      await sink.close();
+
+      // Optional: Prüfsumme prüfen, falls erwartet
+      if (expectedSha256 != null) {
+        try {
+          final bytes = await tmpFile.readAsBytes();
+          final hash = sha256.convert(bytes).toString();
+          if (hash.toLowerCase() != expectedSha256.toLowerCase()) {
+            _statusMessage = 'Checksumme stimmt nicht überein';
+            await tmpFile.delete().catchError((_) {});
+            return null;
+          }
+        } catch (e) {
+          debugPrint('[GemmaService] Prüfsummen-Fehler: $e');
+        }
+      }
+
+      final installed = await installAndLoadModel(tmpPath);
+      // Temporäre Datei entfernen (Installations-Kopie bleibt im App-Ordner)
+      try {
+        await tmpFile.delete();
+      } catch (_) {}
+      return installed;
+    } catch (e, st) {
+      debugPrint('[GemmaService] Download-Fehler: $e\n$st');
+      _statusMessage = 'Download fehlgeschlagen: $e';
       return null;
     }
   }

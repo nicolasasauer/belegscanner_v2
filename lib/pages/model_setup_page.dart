@@ -35,6 +35,7 @@ class _ModelSetupPageState extends State<ModelSetupPage> {
   bool _isLoading = false;
   String _loadingMessage = '';
   double? _modelFileSizeMb;
+  double _downloadProgress = 0.0;
 
   @override
   void initState() {
@@ -254,6 +255,64 @@ class _ModelSetupPageState extends State<ModelSetupPage> {
     );
   }
 
+  Future<void> _downloadAndInstallFromUrl() async {
+    final controller = TextEditingController();
+    final url = await showDialog<String?>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Modell-URL eingeben'),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(
+            hintText: 'https://example.com/gemma2b.task',
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, null), child: const Text('Abbrechen')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, controller.text.trim()), child: const Text('Download')),
+        ],
+      ),
+    );
+
+    if (url == null || url.isEmpty) return;
+
+    setState(() {
+      _isLoading = true;
+      _loadingMessage = 'Modell wird heruntergeladen…';
+      _downloadProgress = 0.0;
+    });
+
+    final installedPath = await _gemma.downloadAndInstallModel(
+      url,
+      onProgress: (p) {
+        setState(() {
+          _downloadProgress = p.clamp(0.0, 1.0);
+          _loadingMessage = 'Download: ${(p * 100).toStringAsFixed(0)}%';
+        });
+      },
+    );
+
+    setState(() => _isLoading = false);
+    await _refreshModelInfo();
+
+    if (!mounted) return;
+    if (installedPath != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('✓ Modell erfolgreich heruntergeladen und installiert!'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Fehler beim Download: ${_gemma.statusMessage}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
   // ── Build ─────────────────────────────────────────────────────────────────
 
   @override
@@ -304,6 +363,14 @@ class _ModelSetupPageState extends State<ModelSetupPage> {
                           ),
                         ),
                       ),
+                                    ListTile(
+                                      leading: const Icon(Icons.download_outlined),
+                                      title: const Text('Modell herunterladen'),
+                                      subtitle: const Text(
+                                        'Modell automatisch herunterladen und installieren',
+                                      ),
+                                      onTap: _downloadAndInstallFromUrl,
+                                    ),
                   ],
                 ),
                 const SizedBox(height: 16),
