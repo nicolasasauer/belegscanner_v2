@@ -147,6 +147,13 @@ D) UI: Suche & Ergebnisse
 - Ergebnisliste: Highlight matched snippet (Kontext aus `rawText` oder `items`).
 - Optional: „Ähnliche Belege“-Ansicht (matching tags).
 
+F) Datenbank-Backups (neu implementiert)
+
+- Ziel: Regelmäßige Backups der SQLite-Datenbank, Aufbewahrungsfrist (N Versionen), manuelles Erstellen und Wiederherstellen.
+- Implementierung: `lib/services/backup_service.dart` erstellt Backups im App-Dokumenten-Ordner `backups/backup_<timestamp>.db`, bietet `performBackup()`, `listBackups()` und `restoreBackup(path)` sowie einfache Einstellungen (`enabled`, `frequency`, `time`, `maxVersions`).
+- UI: In `ModelSetupPage` gibt es jetzt eine Sektion "Datenbank-Backup" mit: Schalter für automatische Backups, Frequenzauswahl (täglich/wöchentlich), Uhrzeit, Anzahl Versionen, "Jetzt Backup erstellen" und "Backup wiederherstellen"-Dialog.
+- Einschränkungen: Backup-Trigger läuft aktuell nur beim App-Start (Aufruf von `BackupService.checkAndRunScheduledBackup()` in `main.dart`). Keine OS‑Level-Job-Scheduler integriert (z.B. WorkManager) — für zuverlässige zeitgesteuerte Backups auf Android/iOS sollte WorkManager/BackgroundFetch integriert werden.
+
 E) Weitere kleine Verbesserungen
 - Modellgröße & Speicherbedarf in `ModelSetupPage` anzeigen (schätze anhand remote metadata).
 - Warnung bei wenig freiem Speicher vor Download/Install.
