@@ -71,7 +71,10 @@ android {
 
     buildTypes {
         release {
-            signingConfig signingConfigs.release
+            // Wenn keine Signatur-Einstellungen vorhanden sind, wird das Release-APK unsigned gebaut.
+            if (signingConfigs.release.storeFile != null) {
+                signingConfig signingConfigs.release
+            }
             minifyEnabled true
             shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
