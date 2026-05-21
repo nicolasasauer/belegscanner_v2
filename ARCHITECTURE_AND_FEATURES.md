@@ -177,6 +177,26 @@ H) Austauschbares lokales KI-Modell
   - UI: `ModelSetupPage` zeigt aktuelle Modell-Version/Dateigröße und bietet einen klaren Button zum Ersetzen des Modells an.
   - Validierung: neue Modelle sollten anhand der Dateiendung, optionaler SHA-256-Prüfsumme oder ZIP-Content geprüft werden.
 
+I) Austauschbarer Modell-Mechanismus — Umsetzung
+
+- Implementiert in `lib/services/gemma_service.dart`:
+  - `GemmaService` speichert jetzt zusätzlich Modelldaten wie `modelName`, `modelSource`, `modelSha256` und `modelInstalledAt`.
+  - Bei neuer Modellinstallation wird das bestehende `model.bin` zunächst als Backup gesichert (`model.bin.bak`).
+  - Die neue Modelldatei wird atomar in den App-Ordner kopiert: zuerst temporär, dann als Zieldatei umbenannt.
+  - Wenn das neue Modell nicht geladen werden kann, wird das alte Modell aus dem Backup wiederhergestellt und alte Metadaten zurückgesetzt.
+  - `installAndLoadModel(...)` akzeptiert optionale Metadaten `sourceLabel` und `sourceUrl`, um den Installationsursprung nachvollziehbar zu speichern.
+  - Bei Download-Installationen (`downloadAndInstallModel` und `downloadAndInstallModelBackground`) werden ebenfalls Quellenname und URL als Metadaten mitgespeichert.
+
+- UI-Anpassungen in `lib/pages/model_setup_page.dart`:
+  - Die Schaltfläche heißt jetzt `Modell ersetzen`, wenn bereits ein Modell installiert ist.
+  - Die Detailkarte zeigt den installierten Modellnamen und den Installationszeitpunkt.
+  - Dadurch ist der Austausch-Flow für Nutzer klarer und vermeidet Verwirrung über „erstmalige Installation“ versus „Update“. 
+
+- Vorteile dieses Ansatzes:
+  - Sicherer Austausch: ein fehlerhaftes neues Modell zerstört nicht sofort die alte Installation.
+  - Bessere Nachvollziehbarkeit: Meta-Informationen ermöglichen künftig die Anzeige von Modellquelle, Version/Dateiname und Installationsdatum.
+  - Einfache Erweiterung: später lässt sich eine Modell-Versionierung, automatisches Rollback oder eine Versions-Auswahl ergänzen.
+
 Abschluss & nächste Schritte
-- Ich habe die Analyse dokumentiert, den CI-Fix beschrieben und die zukünftige Aufgabe für ein austauschbares lokales KI-Modell ergänzt.
-- Als nächsten Schritt setze ich die Implementierung des austauschbaren KI-Modells um.
+- Die Dokumentation wurde erweitert, der Austausch-Mechanismus beschrieben und die aktuelle Implementierung festgehalten.
+- Nächster Schritt: zusätzliche UI-Verbesserungen für Modell-Metadaten-Anzeige und optionales Zurücksetzen/Wiederherstellen implementieren.
