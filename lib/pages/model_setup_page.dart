@@ -690,10 +690,10 @@ class _ModelSetupPageState extends State<ModelSetupPage> {
                         }
                       },
                     ),
-                    ListTile(
-                      leading: const Icon(Icons.restore_outlined),
-                      title: const Text('Backup wiederherstellen'),
-                      onTap: () => _showRestoreDialog(),
+                    const Divider(height: 1, indent: 16, endIndent: 16),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                      child: _buildBackupListWidget(),
                     ),
                   ],
                 ),
@@ -959,5 +959,122 @@ class _ModelSetupPageState extends State<ModelSetupPage> {
         ],
       ),
     );
+  }
+
+  Widget _buildBackupListWidget() {
+    return FutureBuilder<List<FileSystemEntity>>(
+      future: BackupService.instance.listBackups(),
+      builder: (ctx, snap) {
+        if (snap.connectionState == ConnectionState.waiting) {
+          return const Padding(
+            padding: EdgeInsets.all(12),
+            child: Center(child: CircularProgressIndicator()),
+          );
+        }
+        final items = snap.data ?? [];
+        if (items.isEmpty) {
+          return ListTile(
+            leading: const Icon(Icons.check_box_outline_blank),
+            title: const Text('Keine Backups'),
+            subtitle: const Text('Erstelle ein Backup oder warte auf den geplanten Lauf.'),
+          );
+        }
+
+        return Column(
+          children: items.map((entity) {
+            final f = entity as File;
+            final name = p.basename(f.path);
+            final stat = f.statSync();
+            final mod = _formatDateTime(stat.modified);
+            final sizeKb = (stat.size / 1024).toStringAsFixed(0);
+            return ListTile(
+              leading: const Icon(Icons.save_outlined),
+              title: Text(name),
+              subtitle: Text('Geändert: $mod · ${sizeKb} KB'),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    tooltip: 'Wiederherstellen',
+                    icon: const Icon(Icons.restore_outlined),
+                    onPressed: () => _confirmAndRestore(f.path),
+                  ),
+                  IconButton(
+                    tooltip: 'Löschen',
+                    icon: const Icon(Icons.delete_outline, color: Colors.red),
+                    onPressed: () => _confirmAndDelete(f.path),
+                  ),
+                ],
+              ),
+            );
+          }).toList(),
+        );
+      },
+    );
+  }
+
+  String _formatDateTime(DateTime d) {
+    final local = d.toLocal();
+    return '${local.year}-${local.month.toString().padLeft(2, '0')}-${local.day.toString().padLeft(2, '0')} ${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
+  }
+
+  Future<void> _confirmAndRestore(String path) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Backup wiederherstellen?'),
+        content: const Text('Dieses Backup wird die aktuelle Datenbank ersetzen. Die App sollte danach neu gestartet werden.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(backgroundColor: Colors.orange),
+            child: const Text('Wiederherstellen'),
+          ),
+        ],
+      ),
+    );
+    if (ok == true) await _performRestore(path);
+  }
+
+  Future<void> _performRestore(String path) async {
+    setState(() { _isLoading = true; _loadingMessage = 'Backup wird wiederhergestellt…'; });
+    final res = await BackupService.instance.restoreBackup(path);
+    setState(() { _isLoading = false; });
+    if (res) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Backup wiederhergestellt. Bitte App neu starten.')));
+    } else {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Wiederherstellung fehlgeschlagen'), backgroundColor: Colors.red));
+    }
+  }
+
+  Future<void> _confirmAndDelete(String path) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Backup löschen?'),
+        content: const Text('Diese Datei wird dauerhaft gelöscht.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), style: FilledButton.styleFrom(backgroundColor: Colors.red), child: const Text('Löschen')),
+        ],
+      ),
+    );
+    if (ok == true) await _performDelete(path);
+  }
+
+  Future<void> _performDelete(String path) async {
+    try {
+      final f = File(path);
+      if (f.existsSync()) await f.delete();
+      setState(() {});
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Backup gelöscht')));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Löschen fehlgeschlagen'), backgroundColor: Colors.red));
+    }
   }
 }
