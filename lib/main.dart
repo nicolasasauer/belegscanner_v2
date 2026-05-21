@@ -6,6 +6,7 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'pages/dashboard_page.dart';
 import 'pages/home_page.dart';
 import 'services/database_service.dart';
+import 'services/backup_service.dart';
 
 /// Einstiegspunkt der Bong-Scanner-App.
 void main() {
@@ -20,6 +21,8 @@ void main() {
           // Lokalisierungsdaten für Deutsch initialisieren
           await initializeDateFormatting('de_DE');
 
+          // Prüfe geplante Backups beim Start
+          unawaited(BackupService.instance.checkAndRunScheduledBackup());
           runApp(const BongScannerApp());
         } catch (e, stackTrace) {
           debugPrint('Startup-Fehler: $e\n$stackTrace');

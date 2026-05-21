@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
 
 import '../services/gemma_service.dart';
+import '../services/backup_service.dart';
 
 // ---------------------------------------------------------------------------
 // ModelSetupPage
@@ -46,6 +47,14 @@ class _ModelSetupPageState extends State<ModelSetupPage> {
   void initState() {
     super.initState();
     _refreshModelInfo();
+    _loadBackupSettings();
+  }
+
+  Future<void> _loadBackupSettings() async {
+    await BackupService.instance.loadSettings();
+    setState(() {
+      // nothing else cached here; UI reads from service when building
+    });
   }
 
   // ── Modell-Info ───────────────────────────────────────────────────────────
@@ -588,6 +597,106 @@ class _ModelSetupPageState extends State<ModelSetupPage> {
                     ),
                   ],
                 ),
+                const SizedBox(height: 16),
+                _buildSection(
+                  title: 'Datenbank-Backup',
+                  children: [
+                    SwitchListTile(
+                      title: const Text('Automatische Backups'),
+                      subtitle: const Text('Täglich oder wöchentlich automatische DB-Backups erstellen'),
+                      value: BackupService.instance.enabled,
+                      onChanged: (v) async {
+                        BackupService.instance.enabled = v;
+                        await BackupService.instance.saveSettings();
+                        setState(() {});
+                      },
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.schedule_outlined),
+                      title: const Text('Frequenz'),
+                      subtitle: Text(BackupService.instance.frequency == 'daily' ? 'Täglich' : 'Wöchentlich'),
+                      onTap: () async {
+                        final choice = await showDialog<String?>(
+                          context: context,
+                          builder: (ctx) => SimpleDialog(
+                            title: const Text('Frequenz wählen'),
+                            children: [
+                              SimpleDialogOption(onPressed: () => Navigator.pop(ctx, 'daily'), child: const Text('Täglich')),
+                              SimpleDialogOption(onPressed: () => Navigator.pop(ctx, 'weekly'), child: const Text('Wöchentlich')),
+                            ],
+                          ),
+                        );
+                        if (choice != null) {
+                          BackupService.instance.frequency = choice;
+                          await BackupService.instance.saveSettings();
+                          setState(() {});
+                        }
+                      },
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.access_time_outlined),
+                      title: const Text('Uhrzeit'),
+                      subtitle: Text(BackupService.instance.time),
+                      onTap: () async {
+                        final parts = BackupService.instance.time.split(':');
+                        final initial = TimeOfDay(hour: int.parse(parts[0]), minute: int.parse(parts[1]));
+                        final picked = await showTimePicker(context: context, initialTime: initial);
+                        if (picked != null) {
+                          BackupService.instance.time = '${picked.hour.toString().padLeft(2,'0')}:${picked.minute.toString().padLeft(2,'0')}';
+                          await BackupService.instance.saveSettings();
+                          setState(() {});
+                        }
+                      },
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.history_outlined),
+                      title: const Text('Maximale Backup-Versionen'),
+                      subtitle: Text('${BackupService.instance.maxVersions}'),
+                      onTap: () async {
+                        final controller = TextEditingController(text: BackupService.instance.maxVersions.toString());
+                        final v = await showDialog<int?>(
+                          context: context,
+                          builder: (ctx) => AlertDialog(
+                            title: const Text('Anzahl Versionen'),
+                            content: TextField(
+                              controller: controller,
+                              keyboardType: TextInputType.number,
+                            ),
+                            actions: [
+                              TextButton(onPressed: () => Navigator.pop(ctx, null), child: const Text('Abbrechen')),
+                              FilledButton(onPressed: () => Navigator.pop(ctx, int.tryParse(controller.text)), child: const Text('Speichern')),
+                            ],
+                          ),
+                        );
+                        if (v != null && v > 0) {
+                          BackupService.instance.maxVersions = v;
+                          await BackupService.instance.saveSettings();
+                          setState(() {});
+                        }
+                      },
+                    ),
+                    const Divider(height: 1, indent: 16, endIndent: 16),
+                    ListTile(
+                      leading: const Icon(Icons.backup_outlined),
+                      title: const Text('Jetzt Backup erstellen'),
+                      onTap: () async {
+                        setState(() { _isLoading = true; _loadingMessage = 'Backup läuft…'; });
+                        final path = await BackupService.instance.performBackup();
+                        setState(() { _isLoading = false; });
+                        if (path != null) {
+                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Backup erstellt: ${path.split('/').last}')));
+                        } else {
+                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Backup fehlgeschlagen'), backgroundColor: Colors.red));
+                        }
+                      },
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.restore_outlined),
+                      title: const Text('Backup wiederherstellen'),
+                      onTap: () => _showRestoreDialog(),
+                    ),
+                  ],
+                ),
               ],
             ),
     );
@@ -790,6 +899,65 @@ class _ModelSetupPageState extends State<ModelSetupPage> {
           ),
         ),
       ],
+    );
+  }
+
+  Future<void> _showRestoreDialog() async {
+    final backups = await BackupService.instance.listBackups();
+    if (backups.isEmpty) {
+      if (!mounted) return;
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Keine Backups gefunden'),
+          content: const Text('Es wurden keine Backup-Dateien im App-Verzeichnis gefunden.'),
+          actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('OK'))],
+        ),
+      );
+      return;
+    }
+
+    String? selected;
+    await showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Backup auswählen'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: ListView.builder(
+            shrinkWrap: true,
+            itemCount: backups.length,
+            itemBuilder: (c, i) {
+              final f = backups[i] as File;
+              return RadioListTile<String>(
+                value: f.path,
+                groupValue: selected,
+                title: Text(p.basename(f.path)),
+                subtitle: Text('${f.statSync().modified}'),
+                onChanged: (v) => setState(() => selected = v),
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
+          FilledButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              if (selected == null) return;
+              setState(() { _isLoading = true; _loadingMessage = 'Restore läuft…'; });
+              final ok = await BackupService.instance.restoreBackup(selected!);
+              setState(() { _isLoading = false; });
+              if (ok) {
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Backup erfolgreich wiederhergestellt. App ggf. neu starten.')));
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Restore fehlgeschlagen'), backgroundColor: Colors.red));
+              }
+            },
+            child: const Text('Wiederherstellen'),
+          ),
+        ],
+      ),
     );
   }
 }
