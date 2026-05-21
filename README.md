@@ -267,7 +267,11 @@ Ein automatisierter Build-Workflow ist unter `.github/workflows/build-apk.yml` k
 3. Release-APK bauen (`flutter build apk --release`)
 4. APK als Build-Artifact speichern
 
-**Secrets erforderlich** (für Signing):
+**Signing-Verhalten im CI:**
+- Wenn `ANDROID_KEYSTORE_BASE64` gesetzt ist, wird der Produktions-Keystore wiederhergestellt und für den Release-Build verwendet.
+- Wenn keine Signing-Secrets vorhanden sind, wird im Workflow ein temporärer Dummy-Keystore erzeugt und das Release-APK signiert.
+
+**Secrets erforderlich** (für echte Produktions-Signierung):
 - `ANDROID_KEYSTORE_BASE64`
 - `ANDROID_KEYSTORE_PASSWORD`
 - `ANDROID_KEY_ALIAS`
