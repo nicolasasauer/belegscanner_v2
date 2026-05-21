@@ -51,7 +51,7 @@ dependencies:
   shared_preferences: ^2.3.3
 
   # Netzwerkprüfung: WLAN-only Downloads
-  connectivity_plus: ^4.0.1
+  connectivity_plus: ^7.1.1
 
   # Background/Resumable Downloads
   flutter_downloader: ^1.11.4

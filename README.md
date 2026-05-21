@@ -52,6 +52,7 @@ Kamera → ML Kit OCR → Artikel-Parser → Keyword-Kategorisierung →
 - ✅ **Fallback-Logik** – Keyword-Kategorisierung bei KI-Fehlern oder "Sonstiges"-Klassifizierung
 - ✅ **Setup-UI** – In-App Modell-Installation, Test, Einstellungen unter `model_setup_page.dart`
 - 🔁 **Modell austauschbar** – Sicherer Austausch mit Backup, Rollback und Metadaten für installierten Modellnamen / Quelle
+- 🗄️ **Manuelles Datenbank-Backup** – In der App gibt es einen Button "Jetzt Backup erstellen" für sofortige Sicherungen und ein Backup-Management.
 - ℹ️ **Modell-Download erforderlich** – ~1,5 GB (Kaggle/Hugging Face)
 
 **Technische Details:** Siehe [GEMMA_AI_INTEGRATION.md](./GEMMA_AI_INTEGRATION.md)
