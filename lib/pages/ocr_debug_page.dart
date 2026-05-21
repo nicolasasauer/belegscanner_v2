@@ -28,6 +28,7 @@ class _OcrDebugPageState extends State<OcrDebugPage> {
   bool _showJson = false;
   late Receipt _currentReceipt;
   List<dynamic> _spatialLines = [];
+  bool _allowSystemPop = false;
 
   @override
   void initState() {
@@ -176,10 +177,15 @@ class _OcrDebugPageState extends State<OcrDebugPage> {
     final spatialDataStr = _currentReceipt.spatialData;
     final hasImage = _currentReceipt.imagePath != null && File(_currentReceipt.imagePath!).existsSync();
 
-    return WillPopScope(
-      onWillPop: () async {
-        Navigator.pop(context, _currentReceipt);
-        return false;
+    return PopScope<dynamic>(
+      canPop: _allowSystemPop,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) {
+          setState(() {
+            _allowSystemPop = true;
+          });
+          Navigator.pop(context, _currentReceipt);
+        }
       },
       child: Scaffold(
         appBar: AppBar(
@@ -209,8 +215,8 @@ class _OcrDebugPageState extends State<OcrDebugPage> {
             : !hasImage
                 ? const Center(child: Text('Kein Bild für diesen Beleg gefunden.'))
                 : _buildImageWithOverlay(context),
-      ),
-    );
+        ),
+      );
   }
 
   Widget _buildImageWithOverlay(BuildContext context) {
@@ -231,11 +237,9 @@ class _OcrDebugPageState extends State<OcrDebugPage> {
                     child: GestureDetector(
                       onTapUp: (details) {
                         // Find if a box was tapped
-                        final renderBox = context.findRenderObject() as RenderBox;
-                        final localPos = renderBox.globalToLocal(details.globalPosition);
 
-                        // Since we scale the image inside the stack using Image.file with fit Boxfit...? 
-                        // Wait, Image.file has no fit specified here, so it is scaled proportionally. 
+                        // Since we scale the image inside the stack using Image.file with fit BoxFit, further mapping logic may be required.
+                        // Wait, Image.file has no fit specified here, so it is scaled proportionally.
                         // Let's get the original image size and screen size to map pointers precisely.
                         // For a simple implementation, tapping might need exact coordinates.
                         // I will pass the Image Size and find the scale factor.
@@ -309,8 +313,8 @@ class _OcrDebugPageState extends State<OcrDebugPage> {
                           onTap: () => _onBoxTapped(line),
                           child: Container(
                             decoration: BoxDecoration(
-                              border: Border.all(color: Colors.red.withOpacity(0.5), width: 2),
-                              color: Colors.blue.withOpacity(0.3),
+                              border: Border.all(color: Colors.red.withValues(alpha: 0.5), width: 2),
+                              color: Colors.blue.withValues(alpha: 0.3),
                             ),
                             child: FittedBox(
                               fit: BoxFit.scaleDown,

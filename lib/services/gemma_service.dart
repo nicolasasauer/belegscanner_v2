@@ -56,14 +56,12 @@ class GemmaService {
   double temperature = 0.1;
 
   /// Ob das Modell gerade geladen und bereit für Inferenz ist.
-  bool get isReady => _isInitialized && _session != null;
+  bool get isReady => _isInitialized;
 
   /// Kurze Status-Beschreibung für die UI.
   String get statusMessage => _statusMessage;
 
   bool _isInitialized = false;
-  dynamic _model;
-  dynamic _session;
   String _statusMessage = 'Nicht initialisiert';
 
   // ── Einstellungen ─────────────────────────────────────────────────────────
@@ -98,7 +96,7 @@ class GemmaService {
   /// Gibt [false] zurück bei Fehler oder wenn kein Modell konfiguriert ist.
   /// Idempotent: ein bereits geladenes Modell wird nicht neu geladen.
   Future<bool> ensureReady() async {
-    if (_isInitialized && _session != null) return true;
+    if (_isInitialized) return true;
     if (!isEnabled) {
       _statusMessage = 'KI deaktiviert';
       return false;
@@ -136,10 +134,13 @@ class GemmaService {
 
   /// Entlädt das Modell aus dem Speicher und setzt den Zustand zurück.
   Future<void> unloadModel() async {
-    await _session?.close();
-    _session = null;
-    _model?.close();
-    _model = null;
+    if (_isInitialized) {
+      try {
+        await FlutterGemmaPlugin.instance.close();
+      } catch (e) {
+        debugPrint('[GemmaService] Fehler beim Schließen: $e');
+      }
+    }
     _isInitialized = false;
     _statusMessage = 'Modell entladen';
     debugPrint('[GemmaService] Modell entladen.');
@@ -191,32 +192,13 @@ class GemmaService {
     debugPrint('[GemmaService] Prompt (${prompt.length} Zeichen) wird gesendet…');
 
     try {
-      final response = await _session.getResponse(prompt) ?? await _getResponseFallback(_session, prompt);
+      final response = await FlutterGemmaPlugin.instance.getResponse(prompt: prompt);
       debugPrint('[GemmaService] Antwort: $response');
-      return _parseResponse(response, items.length, availableCategories);
+      return _parseResponse(response ?? '', items.length, availableCategories);
     } catch (e, st) {
       debugPrint('[GemmaService] Inferenz-Fehler: $e\n$st');
       _statusMessage = 'Inferenz fehlgeschlagen: $e';
-      // Auf Fehler bei der Session: Session neu erstellen beim nächsten Aufruf
-      await _session?.close();
-      _session = null;
-      try {
-        _session = await _createSession(_model, temperature);
-      } catch (_) {}
-      return null;
-    }
-  }
-
-  /// Fallback-Methode für alternative Inferenz-APIs
-  Future<String?> _getResponseFallback(dynamic session, String prompt) async {
-    try {
-      if (session == null) return null;
-      // Versuche alternative Methoden-Namen
-      if (session is Function) {
-        return await session(prompt);
-      }
-      return await session.generateResponse(prompt);
-    } catch (_) {
+      await unloadModel();
       return null;
     }
   }
@@ -230,29 +212,22 @@ class GemmaService {
 
       await unloadModel();
 
-      // Verwende dynamic für Kompatibilität mit flutter_gemma 0.4.0 API
-      // Die tatsächlichen Typen werden zur Laufzeit geladen
-      try {
-        _model = await Gemma.loadModel(
-          modelPath: path,
-          backend: GemmaBackend.gpu,
-          maxTokens: 512,
-        );
-
-        _session = await _model.createSession(
-          temperature: temperature,
-          topK: 1,
-          topP: 0.9,
-        );
-      } catch (_) {
-        // Fallback für alternative flutter_gemma API
-        _model = await _createModel(path);
-        if (_model != null) {
-          _session = await _createSession(_model, temperature);
+      final docsDir = await getApplicationDocumentsDirectory();
+      final expectedPath = p.join(docsDir.path, 'model.bin');
+      if (path != expectedPath) {
+        final src = File(path);
+        if (!src.existsSync()) {
+          throw Exception('Quelldatei nicht gefunden: $path');
         }
+        await src.copy(expectedPath);
       }
 
-      if (_session == null) throw Exception('Session konnte nicht erstellt werden');
+      await FlutterGemmaPlugin.instance.init(
+        maxTokens: 512,
+        temperature: temperature,
+        topK: 1,
+        randomSeed: 1,
+      );
 
       _isInitialized = true;
       _statusMessage = 'Modell bereit ✓';
@@ -262,58 +237,15 @@ class GemmaService {
       debugPrint('[GemmaService] Fehler beim Laden: $e\n$st');
       _statusMessage = 'Ladefehler: $e';
       _isInitialized = false;
-      _model = null;
-      _session = null;
       return false;
-    }
-  }
-
-  // Hilfsmethoden für flexible API-Unterstützung
-  Future<dynamic> _createModel(String path) async {
-    try {
-      return await Gemma.loadModel(
-        modelPath: path,
-        backend: _getPreferredBackend(),
-        maxTokens: 512,
-      );
-    } catch (_) {
-      return null;
-    }
-  }
-
-  Future<dynamic> _createSession(dynamic model, double temp) async {
-    if (model == null) return null;
-    try {
-      return await model.createSession(
-        temperature: temp,
-        topK: 1,
-        topP: 0.9,
-      );
-    } catch (_) {
-      return null;
-    }
-  }
-
-  dynamic _getPreferredBackend() {
-    try {
-      return GemmaBackend.gpu;
-    } catch (_) {
-      return 'gpu';
     }
   }
 
   Future<String?> _copyModelToAppDir(String sourcePath) async {
     try {
       final docsDir = await getApplicationDocumentsDirectory();
-      final modelsDir = Directory(p.join(docsDir.path, 'models', 'gemma'));
-      if (!modelsDir.existsSync()) {
-        await modelsDir.create(recursive: true);
-      }
+      final destPath = p.join(docsDir.path, 'model.bin');
 
-      final fileName = p.basename(sourcePath);
-      final destPath = p.join(modelsDir.path, fileName);
-
-      // Wenn Quelle und Ziel identisch sind, nichts tun
       if (sourcePath == destPath) return destPath;
 
       final src = File(sourcePath);

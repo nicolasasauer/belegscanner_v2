@@ -5,7 +5,6 @@ import 'package:flutter/foundation.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:image_gallery_saver/image_gallery_saver.dart';
-import 'package:intl/intl.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
@@ -164,7 +163,6 @@ final RegExp lineItemPriceRegex =
 /// - "Brot 750g  2,49" → name: "Brot 750g", price: 2.49
 /// - "Apfelstrudel A 2,50" → name: "Apfelstrudel", price: 2.50
 /// - "1,65" → name: "1,65", price: null
-@visibleForTesting
 ({String name, double? price}) parseLineItem(String line) {
   final match = lineItemPriceRegex.firstMatch(line);
   if (match == null) return (name: line, price: null);

@@ -382,7 +382,7 @@ class _LegendRow extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
         decoration: isSelected
             ? BoxDecoration(
-                color: item.color.withOpacity(0.12),
+                color: item.color.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(8),
               )
             : null,
