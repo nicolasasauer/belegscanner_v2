@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:flutter_downloader/flutter_downloader.dart';
 
 import 'pages/dashboard_page.dart';
 import 'pages/home_page.dart';
@@ -20,6 +21,13 @@ void main() {
         try {
           // Lokalisierungsdaten für Deutsch initialisieren
           await initializeDateFormatting('de_DE');
+
+          // Init background downloader (optional)
+          try {
+            await FlutterDownloader.initialize(debug: false);
+          } catch (e) {
+            debugPrint('[Main] FlutterDownloader init failed: $e');
+          }
 
           // Prüfe geplante Backups beim Start
           unawaited(BackupService.instance.checkAndRunScheduledBackup());

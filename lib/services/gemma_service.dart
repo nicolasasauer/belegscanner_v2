@@ -8,6 +8,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:crypto/crypto.dart';
 import 'package:archive/archive_io.dart';
+import 'package:flutter_downloader/flutter_downloader.dart';
 
 // ---------------------------------------------------------------------------
 // SharedPreferences-Schlüssel
@@ -204,6 +205,55 @@ class GemmaService {
       debugPrint('[GemmaService] Download-Fehler: $e\n$st');
       _statusMessage = 'Download fehlgeschlagen: $e';
       return null;
+    }
+  }
+
+  /// Versucht einen Hintergrund-Download via `flutter_downloader` und
+  /// verwendet bei Nichterreichbarkeit das normale HTTP-Streaming als Fallback.
+  Future<String?> downloadAndInstallModelBackground(
+    String url, {
+    void Function(double progress)? onProgress,
+    String? expectedSha256,
+  }) async {
+    try {
+      _statusMessage = 'Starte Hintergrund-Download…';
+      final tmpDir = await getTemporaryDirectory();
+      final savedDir = tmpDir.path;
+
+      final taskId = await FlutterDownloader.enqueue(
+        url: url,
+        savedDir: savedDir,
+        showNotification: true,
+        openFileFromNotification: false,
+      );
+
+      // Poll den Task-Status bis zum Abschluss
+      while (true) {
+        final tasks = await FlutterDownloader.loadTasksWithRawQuery(query: 'task_id="$taskId"');
+        if (tasks == null || tasks.isEmpty) {
+          await Future.delayed(const Duration(seconds: 1));
+          continue;
+        }
+        final t = tasks.first;
+        if (t.status == DownloadTaskStatus.complete) {
+          final filePath = p.join(savedDir, t.filename ?? p.basename(Uri.parse(url).path));
+          if (onProgress != null) try { onProgress(1.0); } catch (_) {}
+          final candidate = await _tryExtractAndFindModel(filePath);
+          if (candidate == null) return null;
+          final installed = await installAndLoadModel(candidate);
+          return installed;
+        } else if (t.status == DownloadTaskStatus.failed) {
+          _statusMessage = 'Hintergrund-Download fehlgeschlagen';
+          return null;
+        } else {
+          if (onProgress != null) try { onProgress((t.progress ?? 0) / 100.0); } catch (_) {}
+          await Future.delayed(const Duration(seconds: 1));
+        }
+      }
+    } catch (e) {
+      debugPrint('[GemmaService] Hintergrund-Download fehlgeschlagen, versuche Fallback: $e');
+      // Fallback auf den einfachen HTTP-Downloader
+      return downloadAndInstallModel(url, onProgress: onProgress, expectedSha256: expectedSha256);
     }
   }
 

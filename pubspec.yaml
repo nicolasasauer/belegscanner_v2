@@ -50,6 +50,13 @@ dependencies:
   # Persistente Einstellungen (max_concurrent_tasks, KI-Einstellungen)
   shared_preferences: ^2.3.3
 
+  # Netzwerkprüfung: WLAN-only Downloads
+  connectivity_plus: ^4.0.1
+
+  # Background/Resumable Downloads
+  flutter_downloader: ^1.11.4
+  permission_handler: ^10.4.0
+
   # SHA-256-Hashing für Duplikatserkennung
   crypto: ^3.0.6
 
