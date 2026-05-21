@@ -36,6 +36,11 @@ class _ModelSetupPageState extends State<ModelSetupPage> {
   String _loadingMessage = '';
   double? _modelFileSizeMb;
   double _downloadProgress = 0.0;
+  bool _wifiOnly = true;
+  final List<String> _presets = [
+    'https://example.com/gemma2b.task',
+    'https://example.com/gemma3b.task',
+  ];
 
   @override
   void initState() {
@@ -255,26 +260,45 @@ class _ModelSetupPageState extends State<ModelSetupPage> {
     );
   }
 
-  Future<void> _downloadAndInstallFromUrl() async {
-    final controller = TextEditingController();
-    final url = await showDialog<String?>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Modell-URL eingeben'),
-        content: TextField(
-          controller: controller,
-          decoration: const InputDecoration(
-            hintText: 'https://example.com/gemma2b.task',
+  Future<void> _downloadAndInstallFromUrl({String? presetUrl}) async {
+    String? url = presetUrl;
+    if (url == null) {
+      final controller = TextEditingController();
+      url = await showDialog<String?>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Modell-URL eingeben'),
+          content: TextField(
+            controller: controller,
+            decoration: const InputDecoration(
+              hintText: 'https://example.com/gemma2b.task',
+            ),
           ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, null), child: const Text('Abbrechen')),
+            FilledButton(onPressed: () => Navigator.pop(ctx, controller.text.trim()), child: const Text('Download')),
+          ],
         ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, null), child: const Text('Abbrechen')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, controller.text.trim()), child: const Text('Download')),
-        ],
-      ),
-    );
+      );
+    }
 
     if (url == null || url.isEmpty) return;
+
+    if (_wifiOnly) {
+      // Hinweis: tatsächliche Netzwerkkontrolle ist nicht implementiert.
+      final proceed = await showDialog<bool?>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Nur WLAN-Download'),
+          content: const Text('Der Download ist auf WLAN beschränkt (Hinweis: die App prüft das nicht automatisch). Möchtest du fortfahren?'),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Fortfahren')),
+          ],
+        ),
+      );
+      if (proceed != true) return;
+    }
 
     setState(() {
       _isLoading = true;
@@ -369,7 +393,21 @@ class _ModelSetupPageState extends State<ModelSetupPage> {
                                       subtitle: const Text(
                                         'Modell automatisch herunterladen und installieren',
                                       ),
-                                      onTap: _downloadAndInstallFromUrl,
+                                      trailing: PopupMenuButton<String>(
+                                        icon: const Icon(Icons.more_vert),
+                                        onSelected: (v) => _downloadAndInstallFromUrl(presetUrl: v),
+                                        itemBuilder: (ctx) => [
+                                          ..._presets.map((p) => PopupMenuItem(value: p, child: Text('Download $p'))),
+                                          const PopupMenuItem(value: '__custom__', child: Text('Benutzerdefinierte URL...')),
+                                        ],
+                                      ),
+                                      onTap: () => _downloadAndInstallFromUrl(),
+                                    ),
+                                    SwitchListTile(
+                                      title: const Text('Nur WLAN-Download'),
+                                      subtitle: const Text('Verhindert große Mobilfunk-Downloads (Hinweis: Erfordert ggf. Erlaubnis)'),
+                                      value: _wifiOnly,
+                                      onChanged: (v) => setState(() => _wifiOnly = v),
                                     ),
                   ],
                 ),

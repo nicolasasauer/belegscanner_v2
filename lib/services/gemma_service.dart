@@ -7,6 +7,7 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:crypto/crypto.dart';
+import 'package:archive/archive_io.dart';
 
 // ---------------------------------------------------------------------------
 // SharedPreferences-Schlüssel
@@ -187,7 +188,13 @@ class GemmaService {
         }
       }
 
-      final installed = await installAndLoadModel(tmpPath);
+      // Wenn ZIP: extrahiere geeignete Modelldatei
+      final candidate = await _tryExtractAndFindModel(tmpPath);
+      if (candidate == null) {
+        await tmpFile.delete().catchError((_) {});
+        return null;
+      }
+      final installed = await installAndLoadModel(candidate);
       // Temporäre Datei entfernen (Installations-Kopie bleibt im App-Ordner)
       try {
         await tmpFile.delete();
@@ -198,6 +205,37 @@ class GemmaService {
       _statusMessage = 'Download fehlgeschlagen: $e';
       return null;
     }
+  }
+
+  Future<String?> _tryExtractAndFindModel(String filePath) async {
+    // Wenn ZIP, versuche .task/.bin darin zu finden und extrahieren
+    final ext = p.extension(filePath).toLowerCase();
+    if (ext == '.zip') {
+      try {
+        final bytes = await File(filePath).readAsBytes();
+        final archive = ZipDecoder().decodeBytes(bytes);
+        final docsDir = await getTemporaryDirectory();
+        for (final file in archive) {
+          if (file.isFile) {
+            final name = file.name;
+            final lower = name.toLowerCase();
+            if (lower.endsWith('.task') || lower.endsWith('.bin') || lower.endsWith('.tflite')) {
+              final outPath = p.join(docsDir.path, p.basename(name));
+              final outFile = File(outPath);
+              await outFile.writeAsBytes(file.content as List<int>);
+              return outPath;
+            }
+          }
+        }
+        _statusMessage = 'Keine .task/.bin Datei im ZIP gefunden';
+        return null;
+      } catch (e, st) {
+        debugPrint('[GemmaService] ZIP-Extraktion fehlgeschlagen: $e\n$st');
+        _statusMessage = 'ZIP-Extraktion fehlgeschlagen';
+        return null;
+      }
+    }
+    return filePath;
   }
 
   /// Entlädt das Modell aus dem Speicher und setzt den Zustand zurück.

@@ -31,6 +31,35 @@ Future<String?> computeFileHash(String filePath) async {
     debugPrint('[computeFileHash] Fehler beim Hashing von $filePath: $e');
     return null;
   }
+
+  Future<void> _updateFtsForReceipt(Database db, Receipt receipt) async {
+    try {
+      final itemsText = receipt.items.join(' ');
+      // Entferne vorhandenen FTS-Eintrag für diese Receipt (falls vorhanden)
+      await db.rawDelete(
+        'DELETE FROM receipts_fts WHERE rowid = (SELECT rowid FROM $_tableName WHERE id = ?)',
+        [receipt.id],
+      );
+      // Füge aktuellen Text ein (rowid wird aus der Haupttabelle ermittelt)
+      await db.rawInsert(
+        'INSERT INTO receipts_fts(rowid, rawText, itemsText, storeName) VALUES ((SELECT rowid FROM $_tableName WHERE id = ?), ?, ?, ?)',
+        [receipt.id, receipt.rawText ?? '', itemsText, receipt.storeName ?? ''],
+      );
+    } catch (e) {
+      debugPrint('[DatabaseService] FTS-Update fehlgeschlagen: $e');
+    }
+  }
+
+  Future<void> _removeFtsForReceipt(Database db, String id) async {
+    try {
+      await db.rawDelete(
+        'DELETE FROM receipts_fts WHERE rowid = (SELECT rowid FROM $_tableName WHERE id = ?)',
+        [id],
+      );
+    } catch (e) {
+      debugPrint('[DatabaseService] FTS-Remove fehlgeschlagen: $e');
+    }
+  }
 }
 
 /// Service für die lokale SQLite-Datenbank.
@@ -84,6 +113,12 @@ class DatabaseService {
             status TEXT NOT NULL DEFAULT 'completed',
             progress REAL NOT NULL DEFAULT 1.0,
             fileHash TEXT
+          )
+        ''');
+        // FTS5 Volltextsuche-Tabelle für rawText/items/storeName
+        await db.execute('''
+          CREATE VIRTUAL TABLE IF NOT EXISTS receipts_fts USING fts5(
+            rawText, itemsText, storeName, content=''
           )
         ''');
         await db.execute('''
@@ -155,6 +190,8 @@ class DatabaseService {
               'ALTER TABLE $_tableName ADD COLUMN rawText TEXT',
             );
           }
+
+        
           if (newVersion >= 9) {
             await db.execute('ALTER TABLE $_tableName ADD COLUMN storeName TEXT');
             await db.execute('ALTER TABLE $_tableName ADD COLUMN spatialData TEXT');
@@ -233,6 +270,8 @@ class DatabaseService {
       receipt.toMap(),
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
+    // FTS synchronisieren
+    await _updateFtsForReceipt(db, receipt);
   }
 
   /// Gibt alle gespeicherten Belege zurück, absteigend nach Datum sortiert.
@@ -245,6 +284,24 @@ class DatabaseService {
     return maps.map(Receipt.fromMap).toList();
   }
 
+  /// Führt eine Volltextsuche über `rawText`, `items` und `storeName` aus.
+  ///
+  /// Gibt eine Liste von passenden [Receipt] zurück. Die Query nutzt FTS5
+  /// Syntax (z. B. 'wort*' für Prefix-Suche).
+  Future<List<Receipt>> searchReceiptsFullText(String query) async {
+    final db = await database;
+    try {
+      final rows = await db.rawQuery(
+        'SELECT r.* FROM $_tableName r JOIN receipts_fts f ON f.rowid = r.rowid WHERE receipts_fts MATCH ?',
+        [query],
+      );
+      return rows.map(Receipt.fromMap).toList();
+    } catch (e) {
+      debugPrint('[DatabaseService] FTS-Suche fehlgeschlagen: $e');
+      return <Receipt>[];
+    }
+  }
+
   /// Löscht einen Beleg anhand seiner [id] aus der Datenbank.
   Future<void> deleteReceipt(String id) async {
     final db = await database;
@@ -253,6 +310,8 @@ class DatabaseService {
       where: 'id = ?',
       whereArgs: [id],
     );
+    // FTS-Eintrag entfernen
+    await _removeFtsForReceipt(db, id);
   }
 
   /// Aktualisiert einen bestehenden [Receipt] vollständig in der Datenbank.
@@ -264,6 +323,8 @@ class DatabaseService {
       where: 'id = ?',
       whereArgs: [receipt.id],
     );
+    // FTS synchronisieren
+    await _updateFtsForReceipt(db, receipt);
   }
 
   /// Gibt alle Belege mit dem Status `'processing'` zurück.
