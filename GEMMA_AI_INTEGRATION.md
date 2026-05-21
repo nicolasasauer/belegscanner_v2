@@ -7,6 +7,8 @@ bestehenden Belegscanner-Workflow. Die KI läuft **vollständig auf dem Gerät**
 ohne Cloud-Anbindung und verfeinert die keyword-basierte Artikel-Kategorisierung
 durch echtes Sprachverständnis.
 
+- **Austauschbares Modell**: Die App unterstützt jetzt sicheren Modell-Upload / -Austausch mit Backup des alten Modells und automatischem Rollback bei Ladefehlern.
+
 ```
 Kamera
   ↓
