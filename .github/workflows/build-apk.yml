@@ -60,11 +60,11 @@ jobs:
         run: |
           echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/keystore.jks
           cat > android/key.properties <<EOF
-storePassword=$ANDROID_KEYSTORE_PASSWORD
-keyPassword=$ANDROID_KEY_PASSWORD
-keyAlias=$ANDROID_KEY_ALIAS
-storeFile=keystore.jks
-EOF
+            storePassword=$ANDROID_KEYSTORE_PASSWORD
+            keyPassword=$ANDROID_KEY_PASSWORD
+            keyAlias=$ANDROID_KEY_ALIAS
+            storeFile=keystore.jks
+          EOF
 
       - name: Build signed release APK
         run: flutter build apk --release
