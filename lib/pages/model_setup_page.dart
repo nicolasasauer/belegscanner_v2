@@ -6,6 +6,7 @@ import 'package:path/path.dart' as p;
 
 import '../services/gemma_service.dart';
 import '../services/backup_service.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 
 // ---------------------------------------------------------------------------
 // ModelSetupPage
@@ -294,19 +295,21 @@ class _ModelSetupPageState extends State<ModelSetupPage> {
     if (url == null || url.isEmpty) return;
 
     if (_wifiOnly) {
-      // Hinweis: tatsächliche Netzwerkkontrolle ist nicht implementiert.
-      final proceed = await showDialog<bool?>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Text('Nur WLAN-Download'),
-          content: const Text('Der Download ist auf WLAN beschränkt (Hinweis: die App prüft das nicht automatisch). Möchtest du fortfahren?'),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
-            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Fortfahren')),
-          ],
-        ),
-      );
-      if (proceed != true) return;
+      final conn = await Connectivity().checkConnectivity();
+      if (conn != ConnectivityResult.wifi) {
+        final proceed = await showDialog<bool?>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Kein WLAN erkannt'),
+            content: const Text('Es ist aktuell keine WLAN-Verbindung aktiv. Möchtest du den Download trotzdem über mobile Daten erlauben?'),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+              FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Fortfahren')),
+            ],
+          ),
+        );
+        if (proceed != true) return;
+      }
     }
 
     setState(() {
