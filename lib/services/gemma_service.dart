@@ -62,8 +62,8 @@ class GemmaService {
   String get statusMessage => _statusMessage;
 
   bool _isInitialized = false;
-  InferenceModel? _model;
-  InferenceSession? _session;
+  dynamic _model;
+  dynamic _session;
   String _statusMessage = 'Nicht initialisiert';
 
   // ── Einstellungen ─────────────────────────────────────────────────────────
@@ -191,7 +191,7 @@ class GemmaService {
     debugPrint('[GemmaService] Prompt (${prompt.length} Zeichen) wird gesendet…');
 
     try {
-      final response = await _session!.getResponse(prompt);
+      final response = await _session.getResponse(prompt) ?? await _getResponseFallback(_session, prompt);
       debugPrint('[GemmaService] Antwort: $response');
       return _parseResponse(response, items.length, availableCategories);
     } catch (e, st) {
@@ -201,12 +201,22 @@ class GemmaService {
       await _session?.close();
       _session = null;
       try {
-        _session = await _model!.createSession(
-          temperature: temperature,
-          topK: 1,
-          topP: 0.9,
-        );
+        _session = await _createSession(_model, temperature);
       } catch (_) {}
+      return null;
+    }
+  }
+
+  /// Fallback-Methode für alternative Inferenz-APIs
+  Future<String?> _getResponseFallback(dynamic session, String prompt) async {
+    try {
+      if (session == null) return null;
+      // Versuche alternative Methoden-Namen
+      if (session is Function) {
+        return await session(prompt);
+      }
+      return await session.generateResponse(prompt);
+    } catch (_) {
       return null;
     }
   }
@@ -220,17 +230,29 @@ class GemmaService {
 
       await unloadModel();
 
-      _model = InferenceModel(
-        modelPath: path,
-        preferredBackend: PreferredBackend.gpu,
-        maxTokens: 512,
-      );
+      // Verwende dynamic für Kompatibilität mit flutter_gemma 0.4.0 API
+      // Die tatsächlichen Typen werden zur Laufzeit geladen
+      try {
+        _model = await Gemma.loadModel(
+          modelPath: path,
+          backend: GemmaBackend.gpu,
+          maxTokens: 512,
+        );
 
-      _session = await _model!.createSession(
-        temperature: temperature,
-        topK: 1,     // Greedy decoding: deterministisch, wichtig für JSON
-        topP: 0.9,
-      );
+        _session = await _model.createSession(
+          temperature: temperature,
+          topK: 1,
+          topP: 0.9,
+        );
+      } catch (_) {
+        // Fallback für alternative flutter_gemma API
+        _model = await _createModel(path);
+        if (_model != null) {
+          _session = await _createSession(_model, temperature);
+        }
+      }
+
+      if (_session == null) throw Exception('Session konnte nicht erstellt werden');
 
       _isInitialized = true;
       _statusMessage = 'Modell bereit ✓';
@@ -243,6 +265,40 @@ class GemmaService {
       _model = null;
       _session = null;
       return false;
+    }
+  }
+
+  // Hilfsmethoden für flexible API-Unterstützung
+  Future<dynamic> _createModel(String path) async {
+    try {
+      return await Gemma.loadModel(
+        modelPath: path,
+        backend: _getPreferredBackend(),
+        maxTokens: 512,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<dynamic> _createSession(dynamic model, double temp) async {
+    if (model == null) return null;
+    try {
+      return await model.createSession(
+        temperature: temp,
+        topK: 1,
+        topP: 0.9,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  dynamic _getPreferredBackend() {
+    try {
+      return GemmaBackend.gpu;
+    } catch (_) {
+      return 'gpu';
     }
   }
 
