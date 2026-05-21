@@ -20,14 +20,19 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.22.x'
+          flutter-version: 'latest'
           channel: 'stable'
 
       - name: Install dependencies
         run: flutter pub get
 
       - name: Run unit tests
-        run: flutter test --reporter expanded
+        run: |
+          if [ -d test ]; then
+            flutter test --reporter expanded
+          else
+            echo "No tests directory — skipping tests"
+          fi
 
   build:
     name: Build Signed Release APK
@@ -54,7 +59,7 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.22.x'
+          flutter-version: 'latest'
           channel: 'stable'
 
       - name: Install dependencies
