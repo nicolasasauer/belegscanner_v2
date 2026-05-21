@@ -161,10 +161,22 @@ E) Weitere kleine Verbesserungen
 - Hintergrund‑Downloads mit `flutter_downloader` für langlebige Downloads.
 - Telemetrie/Logs (opt-in) für Modell-Install-Fehler, um Support zu erleichtern.
 
-Abschluss & nächste Schritte
-- Ich habe die Analyse dokumentiert und konkrete Implementierungsvorschläge (Download‑Flow, FTS, semantische Tags) aufgenommen.
-- Wenn du möchtest, implementiere ich als nächstes entweder:
-  1) die `GemmaService.downloadAndInstallModel(...)`-Methode + UI‑Button in `ModelSetupPage`, oder
-  2) die FTS-Migration + `DatabaseService.searchReceiptsFullText(...)` API + einfache UI‑Suche.
+G) CI-Fix: Flutter-Version anpassen
 
-Sag mir welche Teilaufgabe ich als nächstes umsetzen soll — ich kann den Code direkt anlegen und Tests / UI‑Screens hinzufügen.
+- Problem: Die GitHub Action verwendete `flutter-version: '3.22.x'`, wodurch das CI-Environment Dart SDK `3.4.4` bereitstellte.
+- Fehler: `flutter_gemma ^0.4.0` hängt von `large_file_handler ^0.3.0`, das Dart SDK `>=3.5.3 <4.0.0` verlangt. Das schlug `flutter pub get` im CI fehl.
+- Fix: Die Workflow-Datei `.github/workflows/build-apk.yml` wurde auf `flutter-version: '3.44.0'` aktualisiert. Damit steht in der Action die benötigte Dart-Version zur Verfügung.
+- Ergebnis: Ein frisch ausgelöster Run wird jetzt mit neuer Konfiguration gestartet; der ursprüngliche `pub get`-Fehler sollte damit beseitigt sein.
+
+H) Austauschbares lokales KI-Modell
+
+- Ziel: Die App soll ein installiertes Gemma-Modell ersetzen können, ohne dass bestehende App-Daten kaputtgehen.
+- Umsetzungsidee:
+  - `GemmaService` verwaltet jetzt nicht nur `modelPath`, sondern auch Modellversion/-metadaten und eine saubere Austausch-API.
+  - Beim Installieren eines neuen Modells wird das alte Modell sicher entfernt oder atomar ersetzt.
+  - UI: `ModelSetupPage` zeigt aktuelle Modell-Version/Dateigröße und bietet einen klaren Button zum Ersetzen des Modells an.
+  - Validierung: neue Modelle sollten anhand der Dateiendung, optionaler SHA-256-Prüfsumme oder ZIP-Content geprüft werden.
+
+Abschluss & nächste Schritte
+- Ich habe die Analyse dokumentiert, den CI-Fix beschrieben und die zukünftige Aufgabe für ein austauschbares lokales KI-Modell ergänzt.
+- Als nächsten Schritt setze ich die Implementierung des austauschbaren KI-Modells um.
