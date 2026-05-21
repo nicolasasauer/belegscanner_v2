@@ -27,7 +27,7 @@ Eine Flutter-App für Android zum **Einscannen**, **Speichern**, **Durchsuchen**
 | 🔢 | **Summe aus Artikeln berechnen** | Ein Knopfdruck im Bearbeitungs-Modus berechnet den Gesamtbetrag automatisch aus der Summe der eingetragenen Einzelpreise |
 | 🔍 | **Volltextsuche** | Belege nach Händlername, Betrag oder Stichwörtern in den Einzelpositionen durchsuchen |
 | 🗂️ | **Datum-Filter** | Belege nach Tag, Monat und Jahr filtern – kombinierbare FilterChips |
-| 📤 | **CSV-Export** | Alle Belege als RFC-4180-konforme CSV-Datei exportieren und per Share-Sheet teilen |
+| 📤 | **CSV-Export** | Alle Belege als CSV-Datei exportieren und per Share-Sheet teilen |
 | 📥 | **Multi-Galerie-Import** | Mehrere Bonfotos gleichzeitig aus der Gerätegalerie importieren – alle Jobs laufen parallel in einer konfigurierbaren Concurrency-Queue |
 | 🔒 | **SHA-256 Duplikatschutz** | Vor der OCR-Verarbeitung wird ein SHA-256-Hash des Bildes berechnet; identische Bilder werden erkannt und übersprungen |
 | ⚡ | **Concurrency-Queue** | Maximal N OCR-Jobs laufen gleichzeitig (einstellbar 1–5); weitere Jobs warten in der Warteschlange |

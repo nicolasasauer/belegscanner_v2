@@ -44,7 +44,7 @@ SQLite Speicherung            (unverändert)
 |-------|----------|
 | `lib/services/processor_service.dart` | Schritt 6.5 eingefügt (KI-Kategorisierung) |
 | `pubspec.yaml` | `flutter_gemma: ^0.4.0` hinzugefügt |
-| `android/app/build.gradle` | `minSdk 24`, NDK `26.1.10909125`, `packagingOptions` |
+| `android/app/build.gradle` | `minSdk 21`, NDK `25.1.8937393`, optional `abiFilters` |
 | `android/app/proguard-rules.pro` | MediaPipe/flutter_gemma keep-rules |
 
 ---
@@ -55,9 +55,9 @@ SQLite Speicherung            (unverändert)
 
 ```bash
 # Android Studio → SDK Manager → SDK Tools → NDK (Side by side)
-# Version: 26.1.10909125
+# Version: 25.1.8937393
 # Oder via sdkmanager:
-sdkmanager "ndk;26.1.10909125"
+sdkmanager "ndk;25.1.8937393"
 ```
 
 ### 2. Dependencies installieren
@@ -184,11 +184,11 @@ angepasst.
 
 | Anforderung | Wert |
 |-------------|------|
-| Android API | ≥ 24 (Android 7.0) |
+| Android API | ≥ 21 (Android 5.0) / empfohlen ≥ 24 für Gemma-Performance |
 | RAM | ≥ 3 GB empfohlen (Modell + OS + App) |
 | Speicherplatz | ≥ 2 GB für Modell (1,5 GB .task + 300 MB Arbeitsspeicher) |
 | ABI | arm64-v8a (64-Bit ARM) |
-| NDK | 26.1.10909125 |
+| NDK | 25.1.8937393 |
 
 ---
 

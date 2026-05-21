@@ -30,6 +30,10 @@ class CategoryService {
         return Colors.orange.shade100;
       case 'Pfand':
         return Colors.purple.shade100;
+      case 'Freizeit':
+        return Colors.teal.shade100;
+      case 'Transport':
+        return Colors.brown.shade100;
       default:
         return Colors.grey.shade200;
     }
@@ -46,6 +50,10 @@ class CategoryService {
         return Colors.orange.shade800;
       case 'Pfand':
         return Colors.purple.shade800;
+      case 'Freizeit':
+        return Colors.teal.shade900;
+      case 'Transport':
+        return Colors.brown.shade900;
       default:
         return Colors.grey.shade700;
     }
