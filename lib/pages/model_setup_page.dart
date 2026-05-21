@@ -131,7 +131,11 @@ class _ModelSetupPageState extends State<ModelSetupPage> {
             'Dies kann bei großen Dateien (>1 GB) einige Minuten dauern.';
       });
 
-      final installedPath = await _gemma.installAndLoadModel(sourcePath);
+      final installedPath = await _gemma.installAndLoadModel(
+        sourcePath,
+        sourceLabel: p.basename(sourcePath),
+        sourceUrl: sourcePath,
+      );
 
       setState(() => _isLoading = false);
       await _refreshModelInfo();
@@ -436,9 +440,11 @@ class _ModelSetupPageState extends State<ModelSetupPage> {
                     const Divider(height: 1, indent: 16, endIndent: 16),
                     ListTile(
                       leading: const Icon(Icons.folder_open_outlined),
-                      title: const Text('Modelldatei auswählen'),
-                      subtitle: const Text(
-                        'MediaPipe .task-Format (Gemma 2B oder 3B empfohlen)',
+                      title: Text(_gemma.modelPath != null ? 'Modell ersetzen' : 'Modelldatei auswählen'),
+                      subtitle: Text(
+                        _gemma.modelPath != null
+                            ? 'Ersetzt das aktuell installierte Modell im App-Speicher.'
+                            : 'MediaPipe .task-Format (Gemma 2B oder 3B empfohlen)',
                       ),
                       trailing: const Icon(Icons.chevron_right),
                       onTap: _pickAndInstallModel,
@@ -802,11 +808,14 @@ class _ModelSetupPageState extends State<ModelSetupPage> {
     final sizeStr = _modelFileSizeMb != null
         ? '${_modelFileSizeMb!.toStringAsFixed(0)} MB'
         : 'Unbekannte Größe';
-    final fileName = p.basename(_gemma.modelPath ?? '');
+    final fileName = _gemma.modelName ?? p.basename(_gemma.modelPath ?? '');
+    final installedAt = _gemma.modelInstalledAt != null
+        ? '${_gemma.modelInstalledAt!.toLocal()}'.split('.').first
+        : 'Unbekannt';
     return ListTile(
       leading: const Icon(Icons.memory_outlined, color: Colors.green),
       title: Text(fileName),
-      subtitle: Text('Installiert · $sizeStr'),
+      subtitle: Text('Installiert: $installedAt · $sizeStr'),
       trailing: _gemma.isReady
           ? const Chip(
               label: Text('Bereit'),

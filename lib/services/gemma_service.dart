@@ -16,6 +16,10 @@ import 'package:flutter_downloader/flutter_downloader.dart';
 
 const String kGemmaEnabledKey = 'gemma_ai_enabled';
 const String kGemmaModelPathKey = 'gemma_model_path';
+const String kGemmaModelNameKey = 'gemma_model_name';
+const String kGemmaModelSourceKey = 'gemma_model_source';
+const String kGemmaModelSha256Key = 'gemma_model_sha256';
+const String kGemmaModelInstalledAtKey = 'gemma_model_installed_at';
 const String kGemmaTemperatureKey = 'gemma_temperature';
 
 // ---------------------------------------------------------------------------
@@ -55,6 +59,18 @@ class GemmaService {
   /// Pfad zur Gemma-Modelldatei (.task-Format von MediaPipe).
   String? modelPath;
 
+  /// Optionaler, Anzeigenamen des installierten Modells.
+  String? modelName;
+
+  /// Optionaler Ursprung / Quelle des installierten Modells.
+  String? modelSource;
+
+  /// Optionaler SHA-256-Hash der installierten Modelldatei.
+  String? modelSha256;
+
+  /// Installationszeitpunkt des aktuellen Modells.
+  DateTime? modelInstalledAt;
+
   /// Inferenz-Temperatur (0.0–1.0). Niedrig = deterministischer Output.
   double temperature = 0.1;
 
@@ -74,9 +90,14 @@ class GemmaService {
     final prefs = await SharedPreferences.getInstance();
     isEnabled = prefs.getBool(kGemmaEnabledKey) ?? false;
     modelPath = prefs.getString(kGemmaModelPathKey);
+    modelName = prefs.getString(kGemmaModelNameKey);
+    modelSource = prefs.getString(kGemmaModelSourceKey);
+    modelSha256 = prefs.getString(kGemmaModelSha256Key);
+    final installedAtString = prefs.getString(kGemmaModelInstalledAtKey);
+    modelInstalledAt = installedAtString != null ? DateTime.tryParse(installedAtString) : null;
     temperature = prefs.getDouble(kGemmaTemperatureKey) ?? 0.1;
     debugPrint('[GemmaService] Einstellungen geladen: '
-        'enabled=$isEnabled, modelPath=$modelPath');
+        'enabled=$isEnabled, modelPath=$modelPath, modelName=$modelName');
   }
 
   /// Speichert alle aktuellen Einstellungen in [SharedPreferences].
@@ -85,8 +106,18 @@ class GemmaService {
     await prefs.setBool(kGemmaEnabledKey, isEnabled);
     if (modelPath != null) {
       await prefs.setString(kGemmaModelPathKey, modelPath!);
+      if (modelName != null) await prefs.setString(kGemmaModelNameKey, modelName!);
+      if (modelSource != null) await prefs.setString(kGemmaModelSourceKey, modelSource!);
+      if (modelSha256 != null) await prefs.setString(kGemmaModelSha256Key, modelSha256!);
+      if (modelInstalledAt != null) {
+        await prefs.setString(kGemmaModelInstalledAtKey, modelInstalledAt!.toIso8601String());
+      }
     } else {
       await prefs.remove(kGemmaModelPathKey);
+      await prefs.remove(kGemmaModelNameKey);
+      await prefs.remove(kGemmaModelSourceKey);
+      await prefs.remove(kGemmaModelSha256Key);
+      await prefs.remove(kGemmaModelInstalledAtKey);
     }
     await prefs.setDouble(kGemmaTemperatureKey, temperature);
   }
@@ -117,17 +148,67 @@ class GemmaService {
   /// wenn sie sich außerhalb davon befindet) und lädt das Modell.
   ///
   /// Gibt den permanenten Pfad zurück oder `null` bei Fehler.
-  Future<String?> installAndLoadModel(String sourcePath) async {
+  Future<String?> installAndLoadModel(String sourcePath, {String? sourceLabel, String? sourceUrl}) async {
     try {
       _statusMessage = 'Modell wird installiert…';
+      final oldModelPath = modelPath;
+      final oldModelName = modelName;
+      final oldModelSource = modelSource;
+      final oldModelSha = modelSha256;
+      final oldModelInstalledAt = modelInstalledAt;
+      final docsDir = await getApplicationDocumentsDirectory();
+      final destPath = p.join(docsDir.path, 'model.bin');
+      final backupPath = p.join(docsDir.path, 'model.bin.bak');
+      final hadExistingModel = File(destPath).existsSync();
+
+      await unloadModel();
+      if (hadExistingModel) {
+        try {
+          await File(destPath).copy(backupPath);
+        } catch (e) {
+          debugPrint('[GemmaService] Backup des alten Modells fehlgeschlagen: $e');
+        }
+      }
+
       final permanentPath = await _copyModelToAppDir(sourcePath);
-      if (permanentPath == null) return null;
+      if (permanentPath == null) {
+        if (hadExistingModel && File(backupPath).existsSync()) {
+          await _restoreBackup(backupPath, destPath);
+        }
+        return null;
+      }
 
       modelPath = permanentPath;
+      modelName = sourceLabel ?? p.basename(sourcePath);
+      modelSource = sourceUrl ?? sourcePath;
+      modelSha256 = await _computeFileSha256(permanentPath);
+      modelInstalledAt = DateTime.now();
       await saveSettings();
 
       final ok = await _loadModel(permanentPath);
-      return ok ? permanentPath : null;
+      if (!ok) {
+        debugPrint('[GemmaService] Neues Modell konnte nicht geladen werden, altes Modell wird wiederhergestellt.');
+        if (hadExistingModel && File(backupPath).existsSync()) {
+          await _restoreBackup(backupPath, destPath);
+          modelPath = oldModelPath;
+          modelName = oldModelName;
+          modelSource = oldModelSource;
+          modelSha256 = oldModelSha;
+          modelInstalledAt = oldModelInstalledAt;
+          await saveSettings();
+          await _loadModel(destPath);
+        } else {
+          await removeModel();
+        }
+        return null;
+      }
+
+      if (hadExistingModel && File(backupPath).existsSync()) {
+        try {
+          await File(backupPath).delete();
+        } catch (_) {}
+      }
+      return permanentPath;
     } catch (e, st) {
       debugPrint('[GemmaService] Fehler beim Installieren: $e\n$st');
       _statusMessage = 'Fehler beim Installieren: $e';
@@ -195,7 +276,11 @@ class GemmaService {
         await tmpFile.delete().catchError((_) {});
         return null;
       }
-      final installed = await installAndLoadModel(candidate);
+      final installed = await installAndLoadModel(
+        candidate,
+        sourceLabel: p.basename(uri.path),
+        sourceUrl: url,
+      );
       // Temporäre Datei entfernen (Installations-Kopie bleibt im App-Ordner)
       try {
         await tmpFile.delete();
@@ -240,7 +325,11 @@ class GemmaService {
           if (onProgress != null) try { onProgress(1.0); } catch (_) {}
           final candidate = await _tryExtractAndFindModel(filePath);
           if (candidate == null) return null;
-          final installed = await installAndLoadModel(candidate);
+          final installed = await installAndLoadModel(
+            candidate,
+            sourceLabel: p.basename(Uri.parse(url).path),
+            sourceUrl: url,
+          );
           return installed;
         } else if (t.status == DownloadTaskStatus.failed) {
           _statusMessage = 'Hintergrund-Download fehlgeschlagen';
@@ -401,6 +490,7 @@ class GemmaService {
     try {
       final docsDir = await getApplicationDocumentsDirectory();
       final destPath = p.join(docsDir.path, 'model.bin');
+      final tempPath = p.join(docsDir.path, 'model.bin.tmp');
 
       if (sourcePath == destPath) return destPath;
 
@@ -410,13 +500,47 @@ class GemmaService {
         return null;
       }
 
-      debugPrint('[GemmaService] Kopiere Modell: $sourcePath → $destPath');
-      await src.copy(destPath);
+      final tempFile = File(tempPath);
+      if (tempFile.existsSync()) {
+        await tempFile.delete();
+      }
+
+      debugPrint('[GemmaService] Kopiere Modell temporär: $sourcePath → $tempPath');
+      await src.copy(tempPath);
+
+      final destFile = File(destPath);
+      if (destFile.existsSync()) {
+        await destFile.delete();
+      }
+      await tempFile.rename(destPath);
       return destPath;
     } catch (e) {
       debugPrint('[GemmaService] Kopierfehler: $e');
       _statusMessage = 'Kopierfehler: $e';
       return null;
+    }
+  }
+
+  Future<String?> _computeFileSha256(String filePath) async {
+    try {
+      final bytes = await File(filePath).readAsBytes();
+      return sha256.convert(bytes).toString();
+    } catch (e) {
+      debugPrint('[GemmaService] SHA256-Berechnung fehlgeschlagen: $e');
+      return null;
+    }
+  }
+
+  Future<void> _restoreBackup(String backupPath, String destPath) async {
+    try {
+      final backupFile = File(backupPath);
+      final destFile = File(destPath);
+      if (destFile.existsSync()) {
+        await destFile.delete();
+      }
+      await backupFile.rename(destPath);
+    } catch (e) {
+      debugPrint('[GemmaService] Backup-Wiederherstellung fehlgeschlagen: $e');
     }
   }
 
