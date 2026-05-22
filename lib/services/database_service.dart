@@ -31,35 +31,6 @@ Future<String?> computeFileHash(String filePath) async {
     debugPrint('[computeFileHash] Fehler beim Hashing von $filePath: $e');
     return null;
   }
-
-  Future<void> _updateFtsForReceipt(Database db, Receipt receipt) async {
-    try {
-      final itemsText = receipt.items.join(' ');
-      // Entferne vorhandenen FTS-Eintrag für diese Receipt (falls vorhanden)
-      await db.rawDelete(
-        'DELETE FROM receipts_fts WHERE rowid = (SELECT rowid FROM $_tableName WHERE id = ?)',
-        [receipt.id],
-      );
-      // Füge aktuellen Text ein (rowid wird aus der Haupttabelle ermittelt)
-      await db.rawInsert(
-        'INSERT INTO receipts_fts(rowid, rawText, itemsText, storeName) VALUES ((SELECT rowid FROM $_tableName WHERE id = ?), ?, ?, ?)',
-        [receipt.id, receipt.rawText ?? '', itemsText, receipt.storeName ?? ''],
-      );
-    } catch (e) {
-      debugPrint('[DatabaseService] FTS-Update fehlgeschlagen: $e');
-    }
-  }
-
-  Future<void> _removeFtsForReceipt(Database db, String id) async {
-    try {
-      await db.rawDelete(
-        'DELETE FROM receipts_fts WHERE rowid = (SELECT rowid FROM $_tableName WHERE id = ?)',
-        [id],
-      );
-    } catch (e) {
-      debugPrint('[DatabaseService] FTS-Remove fehlgeschlagen: $e');
-    }
-  }
 }
 
 /// Service für die lokale SQLite-Datenbank.
@@ -89,6 +60,35 @@ class DatabaseService {
   Future<Database> get database async {
     _db ??= await _openDatabase();
     return _db!;
+  }
+
+  Future<void> _updateFtsForReceipt(Database db, Receipt receipt) async {
+    try {
+      final itemsText = receipt.items.join(' ');
+      // Entferne vorhandenen FTS-Eintrag für diese Receipt (falls vorhanden)
+      await db.rawDelete(
+        'DELETE FROM receipts_fts WHERE rowid = (SELECT rowid FROM $_tableName WHERE id = ?)',
+        [receipt.id],
+      );
+      // Füge aktuellen Text ein (rowid wird aus der Haupttabelle ermittelt)
+      await db.rawInsert(
+        'INSERT INTO receipts_fts(rowid, rawText, itemsText, storeName) VALUES ((SELECT rowid FROM $_tableName WHERE id = ?), ?, ?, ?)',
+        [receipt.id, receipt.rawText ?? '', itemsText, receipt.storeName ?? ''],
+      );
+    } catch (e) {
+      debugPrint('[DatabaseService] FTS-Update fehlgeschlagen: $e');
+    }
+  }
+
+  Future<void> _removeFtsForReceipt(Database db, String id) async {
+    try {
+      await db.rawDelete(
+        'DELETE FROM receipts_fts WHERE rowid = (SELECT rowid FROM $_tableName WHERE id = ?)',
+        [id],
+      );
+    } catch (e) {
+      debugPrint('[DatabaseService] FTS-Remove fehlgeschlagen: $e');
+    }
   }
 
   Future<Database> _openDatabase() async {

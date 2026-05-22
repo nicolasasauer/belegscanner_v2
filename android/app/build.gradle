@@ -44,7 +44,7 @@ android {
     defaultConfig {
         applicationId "com.nicolas.bong_scanner"
         // Mindest-SDK für ML Kit ist 21
-        minSdk 21
+        minSdkVersion flutter.minSdkVersion
         targetSdk 34
         versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName
