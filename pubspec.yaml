@@ -37,6 +37,7 @@ dependencies:
 
   # Datei-Sharing (CSV-Export per E-Mail, Messenger, Cloud)
   share_plus: ^10.1.0
+  image_gallery_saver: ^1.7.1
 
   # Bilder in der Gerätegalerie speichern
   gal: ^2.3.2
