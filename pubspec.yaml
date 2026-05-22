@@ -39,7 +39,7 @@ dependencies:
   share_plus: ^10.1.0
 
   # Bilder in der Gerätegalerie speichern
-  image_gallery_saver: ^2.0.3
+  gal: ^2.4.0
 
   # Datei-Auswahl (wird jetzt auch für Modell-Import genutzt)
   file_picker: ^8.1.5
