@@ -1,7 +1,6 @@
 import 'dart:io';
 
 import 'dart:convert';
-import 'package:flutter/foundation.dart';
 import 'package:gal/gal.dart';
 import 'package:intl/intl.dart';
 import 'package:path/path.dart' as p;
@@ -84,7 +83,7 @@ class ExportService {
     try {
       await Gal.putImage(tempPath);
     } catch (e) {
-      debugPrint('[ExportService] Fehler beim Speichern in der Galerie: $e');
+      print('[ExportService] Fehler beim Speichern in der Galerie: $e');
       final tempFile = File(tempPath);
       if (await tempFile.exists()) await tempFile.delete();
       return false;
