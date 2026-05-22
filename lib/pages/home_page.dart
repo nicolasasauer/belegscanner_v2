@@ -306,7 +306,6 @@ class _HomePageState extends State<HomePage> {
         );
       }
     }
-    }
   }
 
   /// Wartet asynchron, bis alle [total] Jobs abgeschlossen sind, und zeigt
