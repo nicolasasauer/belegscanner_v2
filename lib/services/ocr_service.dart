@@ -2,9 +2,9 @@ import 'dart:io';
 
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
+import 'package:gal/gal.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:image_gallery_saver/image_gallery_saver.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
@@ -1166,7 +1166,7 @@ class OcrService {
 
     if (source == ImageSource.camera) {
       try {
-        await ImageGallerySaver.saveFile(imageFile.path, name: 'BongScanner');
+        await Gal.putImage(imageFile.path, album: 'BongScanner');
       } catch (e) {
         debugPrint('[OcrService] Fehler beim Speichern in der Galerie: $e');
       }

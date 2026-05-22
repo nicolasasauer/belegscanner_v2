@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import 'package:image_gallery_saver/image_gallery_saver.dart';
+import 'package:gal/gal.dart';
 import 'package:intl/intl.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
@@ -70,8 +70,7 @@ class ExportService {
 
   /// Speichert das Belegbild mit dem Smart-Dateinamen in der Gerätegalerie.
   ///
-  /// Gibt `true` zurück, wenn [ImageGallerySaver] Erfolg meldet, sonst
-  /// `false`. Wirft eine Exception bei I/O- oder API-Fehlern.
+  /// Gibt `true` zurück, wenn das Speichern erfolgreich war, sonst `false`.
   static Future<bool> saveImageToGallery(Receipt receipt) async {
     final imagePath = receipt.imagePath;
     if (imagePath == null) return false;
@@ -81,13 +80,20 @@ class ExportService {
     final tempPath = p.join(tempDir.path, fileName);
     await File(imagePath).copy(tempPath);
 
-    final result = await ImageGallerySaver.saveFile(tempPath);
+    try {
+      await Gal.putImage(tempPath);
+    } catch (e) {
+      debugPrint('[ExportService] Fehler beim Speichern in der Galerie: $e');
+      final tempFile = File(tempPath);
+      if (await tempFile.exists()) await tempFile.delete();
+      return false;
+    }
 
     // Temporäre Datei nach dem Speichern aufräumen.
     final tempFile = File(tempPath);
     if (await tempFile.exists()) await tempFile.delete();
 
-    return result is Map && result['isSuccess'] == true;
+    return true;
   }
 
   // ---------------------------------------------------------------------------
