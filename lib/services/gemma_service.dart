@@ -82,6 +82,7 @@ class GemmaService {
 
   bool _isInitialized = false;
   String _statusMessage = 'Nicht initialisiert';
+  InferenceModel? _model;
 
   // ── Einstellungen ─────────────────────────────────────────────────────────
 
@@ -379,11 +380,13 @@ class GemmaService {
 
   /// Entlädt das Modell aus dem Speicher und setzt den Zustand zurück.
   Future<void> unloadModel() async {
-    if (_isInitialized) {
+    if (_model != null) {
       try {
-        await FlutterGemmaPlugin.instance.close();
+        await _model!.close();
       } catch (e) {
         debugPrint('[GemmaService] Fehler beim Schließen: $e');
+      } finally {
+        _model = null;
       }
     }
     _isInitialized = false;
@@ -437,9 +440,17 @@ class GemmaService {
     debugPrint('[GemmaService] Prompt (${prompt.length} Zeichen) wird gesendet…');
 
     try {
-      final response = await FlutterGemmaPlugin.instance.getResponse(prompt: prompt);
+      final model = _model!;
+      final session = await model.createSession(
+        temperature: temperature,
+        randomSeed: 1,
+        topK: 1,
+        topP: 0.7,
+      );
+      final response = await session.getResponse();
+      await session.close();
       debugPrint('[GemmaService] Antwort: $response');
-      return _parseResponse(response ?? '', items.length, availableCategories);
+      return _parseResponse(response, items.length, availableCategories);
     } catch (e, st) {
       debugPrint('[GemmaService] Inferenz-Fehler: $e\n$st');
       _statusMessage = 'Inferenz fehlgeschlagen: $e';
@@ -467,11 +478,14 @@ class GemmaService {
         await src.copy(expectedPath);
       }
 
-      await FlutterGemmaPlugin.instance.init(
+      await FlutterGemma.installModel(modelType: ModelType.gemmaIt)
+          .fromFile(expectedPath)
+          .install();
+
+      _model = await FlutterGemma.getActiveModel(
         maxTokens: 512,
-        temperature: temperature,
-        topK: 1,
-        randomSeed: 1,
+        preferredBackend: PreferredBackend.cpu,
+        supportAudio: false,
       );
 
       _isInitialized = true;
@@ -489,9 +503,10 @@ class GemmaService {
   Future<String?> _copyModelToAppDir(String sourcePath) async {
     try {
       final docsDir = await getApplicationDocumentsDirectory();
-      final destPath = p.join(docsDir.path, 'model.bin');
-      final tempPath = p.join(docsDir.path, 'model.bin.tmp');
-
+    final extension = p.extension(sourcePath).toLowerCase();
+    final normalizedExtension = extension.isEmpty ? '.bin' : extension;
+    final destPath = p.join(docsDir.path, 'model$normalizedExtension');
+    final tempPath = p.join(docsDir.path, 'model$normalizedExtension.tmp');
       if (sourcePath == destPath) return destPath;
 
       final src = File(sourcePath);
