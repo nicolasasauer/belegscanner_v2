@@ -55,7 +55,7 @@ dependencies:
 
   # Background/Resumable Downloads
   flutter_downloader: ^1.11.4
-  permission_handler: ^10.4.0
+  permission_handler: ^11.3.1
 
   # SHA-256-Hashing für Duplikatserkennung
   crypto: ^3.0.6
