@@ -6,3 +6,8 @@
 -dontwarn com.google.mlkit.vision.text.devanagari.**
 -dontwarn com.google.mlkit.vision.text.japanese.**
 -dontwarn com.google.mlkit.vision.text.korean.**
+# MediaPipe R8 Keep Rules (für flutter_gemma)
+-keep class com.google.mediapipe.** { *; }
+-keep class com.google.auto.value.** { *; }
+-dontwarn com.google.mediapipe.**
+-dontwarn com.google.auto.value.**
