@@ -631,7 +631,7 @@ packages:
       sha256: "59c6322171c29df93a22d150ad95f3aa19ed86542eaec409ab2691b8f35f9a47"
       url: "https://pub.dev"
     source: hosted
-    version: "10.3.6"
+    version: "11.3.1"
   permission_handler_apple:
     dependency: transitive
     description:
