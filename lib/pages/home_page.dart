@@ -286,25 +286,25 @@ class _HomePageState extends State<HomePage> {
       // Wir warten kurz und prüfen dann wiederholt, bis die Queue leer ist.
       _waitForQueueAndNotify(placeholders.length);
     } catch (e) {
-  if (mounted) {
-    // Temporär: echten Fehler anzeigen statt generischer Meldung
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Debug: Fehler beim Import'),
-        content: SelectableText(
-          '${e.runtimeType}:\n$e',
-          style: const TextStyle(fontSize: 12),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('OK'),
+      if (mounted) {
+        // Temporär: echten Fehler anzeigen statt generischer Meldung
+        showDialog(
+          context: context,
+          builder: (_) => AlertDialog(
+            title: const Text('Debug: Fehler beim Import'),
+            content: SelectableText(
+              '${e.runtimeType}:\n$e',
+              style: const TextStyle(fontSize: 12),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('OK'),
+              ),
+            ],
           ),
-        ],
-      ),
-    );
-  }
+        );
+      }
     }
     }
   }
