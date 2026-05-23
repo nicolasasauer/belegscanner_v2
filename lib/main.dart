@@ -24,9 +24,6 @@ void main() {
           // Lokalisierungsdaten für Deutsch initialisieren
           await initializeDateFormatting('de_DE');
 
-          // Init background downloader (optional)
-          try {
-            // await FlutterDownloader.initialize(debug: false);
             // Init background downloader (optional)
             try {
               await FlutterDownloader.initialize(debug: false);
@@ -40,10 +37,7 @@ void main() {
             } catch (e) {
               debugPrint('[Main] FlutterGemma init failed: $e');
             }
-          } catch (e) {
-            debugPrint('[Main] FlutterDownloader init failed: $e');
-          }
-
+          
           // Prüfe geplante Backups beim Start
           unawaited(BackupService.instance.checkAndRunScheduledBackup());
           runApp(const BongScannerApp());
