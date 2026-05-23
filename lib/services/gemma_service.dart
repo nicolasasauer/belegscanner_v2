@@ -57,7 +57,7 @@ const List<ModelDefinition> kAvailableModels = [
     url: 'https://huggingface.co/litert-community/Gemma3-270M-IT/'
         'resolve/main/'
         'Gemma3-270M-IT_multi-prefill-seq_q8_ekv1024.litertlm',
-    modelType: ModelType.gemma3,
+    modelType: ModelType.gemmaIt,
     recommendedRam: '2 GB+',
   ),
   ModelDefinition(
@@ -82,7 +82,7 @@ const List<ModelDefinition> kAvailableModels = [
     sizeMb: 2000,
     url: 'https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/'
         'resolve/main/gemma-4-E2B-it.litertlm',
-    modelType: ModelType.gemma4E2b,
+    modelType: ModelType.gemmaIt,
     recommendedRam: '4 GB+',
   ),
   ModelDefinition(
@@ -94,7 +94,7 @@ const List<ModelDefinition> kAvailableModels = [
     sizeMb: 3700,
     url: 'https://huggingface.co/litert-community/gemma-4-E4B-it-litert-lm/'
         'resolve/main/gemma-4-E4B-it.litertlm',
-    modelType: ModelType.gemma4E4b,
+    modelType: ModelType.gemmaIt,
     recommendedRam: '6 GB+',
   ),
 ];
