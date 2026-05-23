@@ -9,6 +9,8 @@ import 'pages/home_page.dart';
 import 'services/database_service.dart';
 import 'services/backup_service.dart';
 
+import 'package:flutter_gemma/flutter_gemma.dart';
+
 /// Einstiegspunkt der Bong-Scanner-App.
 void main() {
   // WidgetsFlutterBinding muss als allererste Zeile initialisiert werden,
@@ -24,7 +26,20 @@ void main() {
 
           // Init background downloader (optional)
           try {
-            await FlutterDownloader.initialize(debug: false);
+            // await FlutterDownloader.initialize(debug: false);
+            // Init background downloader (optional)
+            try {
+              await FlutterDownloader.initialize(debug: false);
+            } catch (e) {
+              debugPrint('[Main] FlutterDownloader init failed: $e');
+            }
+
+            // NEU: FlutterGemma initialisieren
+            try {
+              await FlutterGemma.initialize();
+            } catch (e) {
+              debugPrint('[Main] FlutterGemma init failed: $e');
+            }
           } catch (e) {
             debugPrint('[Main] FlutterDownloader init failed: $e');
           }
