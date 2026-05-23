@@ -179,7 +179,7 @@ class GemmaService {
             token: huggingFaceToken,
           )
           .withProgress((p) {
-            final pct = p.percentage.toInt();
+            final pct = p;
             debugPrint('[GemmaService] Download: $pct%');
             onProgress?.call(pct);
           })
