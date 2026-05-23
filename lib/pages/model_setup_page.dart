@@ -149,15 +149,15 @@ class _ModelSetupPageState extends State<ModelSetupPage> {
           ),
         );
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Fehler beim Installieren: ${_gemma.statusMessage}',
-            ),
-            backgroundColor: Colors.red,
+        showDialog(
+          context: context,
+          builder: (_) => AlertDialog(
+            title: const Text('Fehler beim Installieren'),
+            content: SelectableText(_gemma.statusMessage),
+            actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK'))],
           ),
-        );
-      }
+       );
+      }   
     } catch (e) {
       setState(() => _isLoading = false);
       if (mounted) {
