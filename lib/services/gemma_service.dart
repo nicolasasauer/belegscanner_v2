@@ -188,7 +188,8 @@ class GemmaService {
 
       final ok = await _loadModel(permanentPath);
       if (!ok) {
-        debugPrint('[GemmaService] Neues Modell konnte nicht geladen werden, altes Modell wird wiederhergestellt.');
+        final errorMsg = _statusMessage; // ← Fehler retten
+        debugPrint('[GemmaService] Neues Modell konnte nicht geladen werden: $errorMsg');
         if (hadExistingModel && File(backupPath).existsSync()) {
           await _restoreBackup(backupPath, destPath);
           modelPath = oldModelPath;
@@ -201,6 +202,7 @@ class GemmaService {
         } else {
           await removeModel();
         }
+        _statusMessage = errorMsg; // ← Echten Fehler wiederherstellen
         return null;
       }
 
