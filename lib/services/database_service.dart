@@ -51,7 +51,7 @@ class DatabaseService {
   /// Tabelle für händlerspezifische Parsing-Profile (Lern-Loop).
   static const _vendorProfilesTable = 'vendor_profiles';
 
-  static const _dbVersion = 10;
+  static const _dbVersion = 11;
 
   Database? _db;
 
@@ -115,10 +115,10 @@ class DatabaseService {
             fileHash TEXT
           )
         ''');
-        // FTS5 Volltextsuche-Tabelle für rawText/items/storeName
+        // FTS4 Volltextsuche-Tabelle für rawText/items/storeName
         await db.execute('''
-          CREATE VIRTUAL TABLE IF NOT EXISTS receipts_fts USING fts5(
-            rawText, itemsText, storeName, content=''
+          CREATE VIRTUAL TABLE IF NOT EXISTS receipts_fts USING fts4(
+            rawText, itemsText, storeName
           )
         ''');
         await db.execute('''
@@ -253,6 +253,15 @@ class DatabaseService {
               preferred_strategy TEXT NOT NULL DEFAULT 'auto',
               success_count INTEGER NOT NULL DEFAULT 0,
               last_updated TEXT
+            )
+          ''');
+        }
+        // Nach dem bestehenden "if (oldVersion < 10)" Block:
+        if (oldVersion < 11) {
+          await db.execute('DROP TABLE IF EXISTS receipts_fts');
+          await db.execute('''
+            CREATE VIRTUAL TABLE IF NOT EXISTS receipts_fts USING fts4(
+              rawText, itemsText, storeName
             )
           ''');
         }
