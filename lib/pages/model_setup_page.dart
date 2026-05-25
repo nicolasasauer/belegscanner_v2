@@ -6,6 +6,8 @@ import 'package:path/path.dart' as p;
 import '../services/gemma_service.dart';
 import '../services/backup_service.dart';
 
+import 'package:url_launcher/url_launcher.dart';
+
 // ---------------------------------------------------------------------------
 // ModelSetupPage
 // ---------------------------------------------------------------------------
@@ -313,7 +315,10 @@ class _ModelSetupPageState extends State<ModelSetupPage> {
                     TextButton.icon(
                       icon: const Icon(Icons.open_in_new, size: 14),
                       label: const Text('huggingface.co/settings/tokens'),
-                      onPressed: () {},
+                      onPressed: () async {
+                        final uri = Uri.parse('https://huggingface.co/settings/tokens');
+                        if (await canLaunchUrl(uri)) await launchUrl(uri, mode: LaunchMode.externalApplication);
+                      },
                       style: TextButton.styleFrom(
                           padding: EdgeInsets.zero,
                           textStyle: const TextStyle(fontSize: 12)),
