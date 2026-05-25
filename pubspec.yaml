@@ -10,6 +10,8 @@ dependencies:
   flutter:
     sdk: flutter
 
+  url_launcher: ^6.3.0
+
   # Google ML Kit für OCR-Texterkennung
   google_mlkit_text_recognition: ^0.13.1
 
