@@ -54,9 +54,8 @@ const List<ModelDefinition> kAvailableModels = [
         'Ideal für einfache Kategorisierung',
     sizeLabel: '~300 MB',
     sizeMb: 300,
-    url: 'https://huggingface.co/litert-community/Gemma3-270M-IT/'
-        'resolve/main/'
-        'Gemma3-270M-IT_multi-prefill-seq_q8_ekv1024.litertlm',
+    url: 'https://huggingface.co/litert-community/gemma-3-270m-it'
+        '/resolve/main/gemma3-270m-it-q8.litertlm',
     modelType: ModelType.gemmaIt,
     recommendedRam: '2 GB+',
   ),
@@ -67,9 +66,8 @@ const List<ModelDefinition> kAvailableModels = [
         'Qualität',
     sizeLabel: '~700 MB',
     sizeMb: 700,
-    url: 'https://huggingface.co/litert-community/Gemma3-1B-IT/'
-        'resolve/main/'
-        'Gemma3-1B-IT_multi-prefill-seq_q4_ekv4096.litertlm',
+    url: 'https://huggingface.co/litert-community/Gemma3-1B-IT'
+        '/resolve/main/Gemma3-1B-IT_multi-prefill-seq_q4_ekv4096.litertlm',
     modelType: ModelType.gemmaIt,
     recommendedRam: '3 GB+',
   ),
@@ -80,8 +78,8 @@ const List<ModelDefinition> kAvailableModels = [
         'Empfohlen für die meisten Geräte',
     sizeLabel: '~2 GB',
     sizeMb: 2000,
-    url: 'https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/'
-        'resolve/main/gemma-4-E2B-it.litertlm',
+    url: 'https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm'
+        '/resolve/main/gemma-4-E2B-it.litertlm',
     modelType: ModelType.gemmaIt,
     recommendedRam: '4 GB+',
   ),
@@ -92,8 +90,8 @@ const List<ModelDefinition> kAvailableModels = [
         'Hoher RAM-Bedarf',
     sizeLabel: '~3.7 GB',
     sizeMb: 3700,
-    url: 'https://huggingface.co/litert-community/gemma-4-E4B-it-litert-lm/'
-        'resolve/main/gemma-4-E4B-it.litertlm',
+    url: 'https://huggingface.co/litert-community/gemma-4-E4B-it-litert-lm'
+        '/resolve/main/gemma-4-E4B-it.litertlm',
     modelType: ModelType.gemmaIt,
     recommendedRam: '6 GB+',
   ),
