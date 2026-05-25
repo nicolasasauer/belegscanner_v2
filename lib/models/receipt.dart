@@ -63,6 +63,12 @@ class Receipt {
   /// Kann `null` sein bei Altdaten oder wenn kein Bild vorhanden ist.
   final String? fileHash;
 
+  /// Anzahl der Artikel, deren Kategorie die lokale KI geändert hat.
+  ///
+  /// `null` bedeutet, dass die KI nicht aktiviert war oder der Beleg
+  /// mit einer älteren App-Version erstellt wurde.
+  final int? aiCategorizedCount;
+
   const Receipt({
     required this.id,
     required this.date,
@@ -76,6 +82,7 @@ class Receipt {
     this.status = 'completed',
     this.progress = 1.0,
     this.fileHash,
+    this.aiCategorizedCount,
   });
 
   /// Gibt die Kategorie für den Artikel an Index [i] zurück.
@@ -99,6 +106,7 @@ class Receipt {
     String? status,
     double? progress,
     String? fileHash,
+    int? aiCategorizedCount,
   }) {
     return Receipt(
       id: id ?? this.id,
@@ -113,6 +121,7 @@ class Receipt {
       status: status ?? this.status,
       progress: progress ?? this.progress,
       fileHash: fileHash ?? this.fileHash,
+      aiCategorizedCount: aiCategorizedCount ?? this.aiCategorizedCount,
     );
   }
 
@@ -134,6 +143,7 @@ class Receipt {
       'status': status,
       'progress': progress,
       'fileHash': fileHash,
+      'aiCategorizedCount': aiCategorizedCount,
     };
   }
 
@@ -163,6 +173,7 @@ class Receipt {
       status: map['status'] as String? ?? 'completed',
       progress: (map['progress'] as num?)?.toDouble() ?? 1.0,
       fileHash: map['fileHash'] as String?,
+      aiCategorizedCount: map['aiCategorizedCount'] as int?,
     );
   }
 

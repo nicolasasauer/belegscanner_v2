@@ -13,6 +13,7 @@ import '../services/processor_service.dart';
 import '../widgets/ai_status_badge.dart';
 import '../widgets/fab_menu_item.dart';
 import '../widgets/filter_bar.dart';
+import '../widgets/image_rotation_dialog.dart';
 import '../widgets/processing_receipt_card.dart';
 import '../widgets/receipt_detail_view.dart';
 import '../widgets/receipt_list_tile.dart';
@@ -270,8 +271,23 @@ class _HomePageState extends State<HomePage> {
       final placeholders = await _ocrService.pickMultipleImages();
       if (placeholders.isEmpty || !mounted) return;
 
+      // Rotationsdialog für jedes Bild vor der Verarbeitung
+      for (final placeholder in placeholders) {
+        if (!mounted) return;
+        final path = placeholder.imagePath;
+        if (path == null) continue;
+        final confirmed = await showDialog<bool>(
+          context: context,
+          barrierDismissible: false,
+          builder: (_) => ImageRotationDialog(imagePath: path),
+        );
+        // null oder false = Import abbrechen
+        if (confirmed != true) return;
+      }
+
       // Zähler zurücksetzen und alle Platzhalter sofort in DB + UI eintragen
       _processorService.skippedDuplicates = 0;
+      _processorService.totalAiCategorizedCount = 0;
       for (final placeholder in placeholders) {
         await _databaseService.insertReceipt(placeholder);
         if (mounted) setState(() => _receipts.insert(0, placeholder));
@@ -282,8 +298,6 @@ class _HomePageState extends State<HomePage> {
         _processorService.enqueue(placeholder);
       }
 
-      // Nach Abschluss aller Jobs ggf. Duplikat-Meldung anzeigen
-      // Wir warten kurz und prüfen dann wiederholt, bis die Queue leer ist.
       _waitForQueueAndNotify(placeholders.length);
     } catch (e) {
       if (mounted) {
@@ -309,9 +323,8 @@ class _HomePageState extends State<HomePage> {
   }
 
   /// Wartet asynchron, bis alle [total] Jobs abgeschlossen sind, und zeigt
-  /// dann eine Zusammenfassung an (inkl. Duplikate).
+  /// dann eine Zusammenfassung an (inkl. Duplikate und KI-Kategorisierungen).
   void _waitForQueueAndNotify(int total) {
-    // Polling: alle 500 ms prüfen, ob noch 'processing'-Belege vorhanden sind.
     Future.delayed(const Duration(milliseconds: 500), () async {
       if (!mounted) return;
       final processing =
@@ -320,15 +333,31 @@ class _HomePageState extends State<HomePage> {
         _waitForQueueAndNotify(total);
         return;
       }
-      // Alle Jobs fertig → Zusammenfassung anzeigen
+
       final dupes = _processorService.skippedDuplicates;
-      if (dupes > 0 && mounted) {
+      final aiCount = _processorService.totalAiCategorizedCount;
+
+      final parts = <String>[];
+      if (dupes == 1) {
+        parts.add('1 Duplikat übersprungen');
+      } else if (dupes > 1) {
+        parts.add('$dupes Duplikate übersprungen');
+      }
+      if (aiCount > 0) {
+        parts.add('KI hat $aiCount ${aiCount == 1 ? 'Artikel' : 'Artikel'} kategorisiert');
+      }
+
+      if (parts.isNotEmpty && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-              dupes == 1
-                  ? '1 Duplikat wurde übersprungen.'
-                  : '$dupes Duplikate wurden übersprungen.',
+            content: Row(
+              children: [
+                if (aiCount > 0) ...[
+                  const Icon(Icons.auto_awesome, size: 16, color: Colors.white),
+                  const SizedBox(width: 8),
+                ],
+                Expanded(child: Text(parts.join(' · '))),
+              ],
             ),
             action: SnackBarAction(
               label: 'OK',
@@ -337,8 +366,10 @@ class _HomePageState extends State<HomePage> {
             ),
           ),
         );
-        _processorService.skippedDuplicates = 0;
       }
+
+      _processorService.skippedDuplicates = 0;
+      _processorService.totalAiCategorizedCount = 0;
     });
   }
 

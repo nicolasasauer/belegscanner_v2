@@ -62,6 +62,9 @@ dependencies:
   # SHA-256-Hashing für Duplikatserkennung
   crypto: ^3.0.6
 
+  # Bild-Manipulation (Rotation, Zuschneiden) für Beleg-Fotos
+  image: ^4.1.7
+
   # Diagramme für das Statistik-Dashboard
   fl_chart: ^0.69.0
 

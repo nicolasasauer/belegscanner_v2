@@ -67,6 +67,9 @@ class ProcessorService {
   /// Anzahl der übersprungenen Duplikate seit dem letzten Batch-Start.
   int skippedDuplicates = 0;
 
+  /// Anzahl der Artikel, die die KI im aktuellen Batch kategorisiert hat.
+  int totalAiCategorizedCount = 0;
+
   final Queue<_ProcessorTask> _queue = Queue();
   int _activeJobs = 0;
   final _uuid = const Uuid();
@@ -237,17 +240,29 @@ class ProcessorService {
       final keywordCategories = List<String>.from(result['categories'] as List);
 
       // ── Schritt 6.5: KI-Kategorisierung (75 %) ───────────────────────────
-      // NEU: Lokales Gemma-Modell verfeinert die keyword-basierten Kategorien.
-      // Bei Fehler oder deaktivierter KI werden keyword-Kategorien beibehalten.
       await _updateProgress(receipt, 0.75);
 
-      final finalCategories = await _aiService.categorize(
+      final aiResult = await _aiService.categorize(
         items: parsedItems,
         existingCategories: keywordCategories,
         availableCategories: CategoryService.availableCategories,
       );
 
-      debugPrint('[ProcessorService] Finale Kategorien: $finalCategories');
+      totalAiCategorizedCount += aiResult.aiChangedCount;
+      debugPrint('[ProcessorService] Finale Kategorien: ${aiResult.categories} '
+          '(${aiResult.aiChangedCount} KI-Änderungen)');
+
+      // ── Schritt 6.6: KI-Händlernamen-Extraktion (falls leer) ─────────────
+      String? storeName = result['storeName'] as String?;
+      if ((storeName == null || storeName.trim().length < 3) &&
+          fullText.isNotEmpty &&
+          GemmaService.instance.isEnabled) {
+        final aiStoreName = await GemmaService.instance.extractStoreName(fullText);
+        if (aiStoreName != null) {
+          debugPrint('[ProcessorService] KI-Händlername: "$aiStoreName"');
+          storeName = aiStoreName;
+        }
+      }
 
       // ── Schritt 7: Abgeschlossenen Beleg speichern (100 %) ───────────────
       final dateStr = result['date'] as String?;
@@ -257,14 +272,15 @@ class ProcessorService {
         date: parsedDate ?? receipt.date,
         totalAmount: result['amount'] as double,
         items: parsedItems,
-        categories: finalCategories, // GEÄNDERT: KI-verfeinerte Kategorien
+        categories: aiResult.categories,
         imagePath: permanentPath ?? tempPath,
-        storeName: result['storeName'] as String?,
+        storeName: storeName,
         spatialData: result['spatialData'] as String?,
         rawText: fullText.isEmpty ? null : fullText,
         status: 'completed',
         progress: 1.0,
         fileHash: hash,
+        aiCategorizedCount: aiResult.aiChangedCount > 0 ? aiResult.aiChangedCount : null,
       );
 
       await _databaseService.updateReceipt(completed);

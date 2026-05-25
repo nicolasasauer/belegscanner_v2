@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import '../models/receipt.dart';
 import '../services/category_service.dart';
 import '../services/database_service.dart';
+import '../services/image_service.dart';
 import '../services/ocr_service.dart';
 import '../pages/ocr_debug_page.dart';
 
@@ -56,6 +57,8 @@ class _ReceiptDetailViewState extends State<ReceiptDetailView> {
   late List<String> _originalCategories;
 
   bool _isSaving = false;
+  bool _isRotating = false;
+  Key _imageKey = UniqueKey();
 
   /// Gibt an, ob die Detailansicht im Bearbeitungs-Modus ist.
   bool _isEditing = false;
@@ -450,6 +453,39 @@ class _ReceiptDetailViewState extends State<ReceiptDetailView> {
                     const Divider(height: 24),
                   ],
 
+                  // KI-Feedback-Banner
+                  if (widget.receipt.aiCategorizedCount != null &&
+                      widget.receipt.aiCategorizedCount! > 0) ...[
+                    Container(
+                      margin: const EdgeInsets.only(bottom: 10),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 7),
+                      decoration: BoxDecoration(
+                        color: Colors.deepPurple.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                            color: Colors.deepPurple.shade100, width: 1),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.auto_awesome,
+                              size: 16,
+                              color: Colors.deepPurple.shade400),
+                          const SizedBox(width: 8),
+                          Text(
+                            'KI hat ${widget.receipt.aiCategorizedCount} '
+                            '${widget.receipt.aiCategorizedCount == 1 ? 'Artikel' : 'Artikel'} '
+                            'kategorisiert',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.deepPurple.shade700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+
                   Text(
                     'Erkannte Positionen',
                     style: Theme.of(context).textTheme.titleSmall,
@@ -504,6 +540,22 @@ class _ReceiptDetailViewState extends State<ReceiptDetailView> {
         );
       },
     );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Bild-Rotation
+  // ---------------------------------------------------------------------------
+
+  Future<void> _rotateImage(int degrees) async {
+    final path = widget.receipt.imagePath;
+    if (path == null) return;
+    setState(() => _isRotating = true);
+    await ImageService.rotateFile(path, degrees);
+    if (!mounted) return;
+    setState(() {
+      _isRotating = false;
+      _imageKey = UniqueKey();
+    });
   }
 
   // ---------------------------------------------------------------------------
@@ -563,36 +615,66 @@ class _ReceiptDetailViewState extends State<ReceiptDetailView> {
 
   Widget _buildImagePreview(BuildContext context) {
     final path = widget.receipt.imagePath!;
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(12),
+      child: Stack(
+        alignment: Alignment.bottomRight,
+        children: [
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: _onImageTap,
+            child: _isRotating
+                ? const SizedBox(
+                    height: 160,
+                    width: double.infinity,
+                    child: Center(child: CircularProgressIndicator()),
+                  )
+                : Image.file(
+                    File(path),
+                    key: _imageKey,
+                    height: 160,
+                    width: double.infinity,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                  ),
+          ),
+          // Zoom-Icon rechts unten
+          Container(
+            margin: const EdgeInsets.all(8),
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              color: Colors.black54,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: const Icon(Icons.zoom_in_outlined, color: Colors.white, size: 18),
+          ),
+          // Rotations-Buttons links unten
+          Positioned(
+            bottom: 8,
+            left: 8,
+            child: Row(
+              children: [
+                _buildRotateIconButton(Icons.rotate_left, 270),
+                const SizedBox(width: 4),
+                _buildRotateIconButton(Icons.rotate_right, 90),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRotateIconButton(IconData icon, int degrees) {
     return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: _onImageTap,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(12),
-        child: Stack(
-          alignment: Alignment.bottomRight,
-          children: [
-            Image.file(
-              File(path),
-              height: 160,
-              width: double.infinity,
-              fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => const SizedBox.shrink(),
-            ),
-            Container(
-              margin: const EdgeInsets.all(8),
-              padding: const EdgeInsets.all(4),
-              decoration: BoxDecoration(
-                color: Colors.black54,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Icon(
-                Icons.zoom_in_outlined,
-                color: Colors.white,
-                size: 18,
-              ),
-            ),
-          ],
+      onTap: _isRotating ? null : () => _rotateImage(degrees),
+      child: Container(
+        padding: const EdgeInsets.all(4),
+        decoration: BoxDecoration(
+          color: Colors.black54,
+          borderRadius: BorderRadius.circular(8),
         ),
+        child: Icon(icon, color: Colors.white, size: 18),
       ),
     );
   }

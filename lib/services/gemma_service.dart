@@ -314,6 +314,45 @@ class GemmaService {
     }
   }
 
+  /// Extrahiert den Händlernamen aus dem OCR-Rohtext.
+  ///
+  /// Gibt [null] zurück, wenn das Modell nicht bereit ist oder keine
+  /// sinnvolle Antwort liefert.
+  Future<String?> extractStoreName(String rawText) async {
+    final ready = await ensureReady();
+    if (!ready) return null;
+
+    final snippet = rawText.length > 400 ? rawText.substring(0, 400) : rawText;
+    final prompt = '''Du siehst den Anfang eines deutschen Kassenbons. '
+Nenne NUR den Namen des Geschäfts (z. B. "Billa", "dm", "Lidl"). '
+Wenn du ihn nicht erkennst, antworte mit "?".
+
+Kassenbon:
+$snippet
+
+Geschäftsname:''';
+
+    try {
+      final model = _model!;
+      final session = await model.createSession(
+        temperature: 0.0,
+        randomSeed: 1,
+        topK: 1,
+        topP: 0.9,
+      );
+      await session.addQueryChunk(Message(text: prompt, isUser: true));
+      final response = await session.getResponse();
+      await session.close();
+      final name = response.trim().split('\n').first.trim();
+      debugPrint('[GemmaService] extractStoreName → "$name"');
+      if (name.isEmpty || name == '?' || name.length > 40) return null;
+      return name;
+    } catch (e) {
+      debugPrint('[GemmaService] extractStoreName Fehler: $e');
+      return null;
+    }
+  }
+
   String _buildPrompt(List<String> items, List<String> categories) {
     final catList = categories.join(', ');
     final itemLines = items
