@@ -299,7 +299,7 @@ class GemmaService {
         topK: 1,
         topP: 0.7,
       );
-      await session.addQueryChunk(prompt);
+      await session.addQueryChunk(Message(text: prompt, isUser: true));
       final response = await session.getResponse();
       await session.close();
       debugPrint('[GemmaService] Antwort erhalten: $response');
