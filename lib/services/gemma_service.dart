@@ -177,9 +177,8 @@ class GemmaService {
             token: huggingFaceToken,
           )
           .withProgress((p) {
-            final pct = p;
-            debugPrint('[GemmaService] Download: $pct%');
-            onProgress?.call(pct);
+            debugPrint('[GemmaService] Download: $p%');
+            onProgress?.call(p);
           })
           .install();
 
