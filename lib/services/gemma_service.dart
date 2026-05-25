@@ -26,6 +26,7 @@ class ModelDefinition {
   final int sizeMb;
   final String url;
   final ModelType modelType;
+  final ModelFileType fileType;
   final String recommendedRam;
   final bool requiresHfToken;
 
@@ -37,6 +38,7 @@ class ModelDefinition {
     required this.sizeMb,
     required this.url,
     required this.modelType,
+    this.fileType = ModelFileType.litertlm,
     required this.recommendedRam,
     this.requiresHfToken = true,
   });
@@ -80,7 +82,7 @@ const List<ModelDefinition> kAvailableModels = [
     sizeMb: 2000,
     url: 'https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm'
         '/resolve/main/gemma-4-E2B-it.litertlm',
-    modelType: ModelType.gemmaIt,
+    modelType: ModelType.gemma4,
     recommendedRam: '4 GB+',
   ),
   ModelDefinition(
@@ -92,7 +94,7 @@ const List<ModelDefinition> kAvailableModels = [
     sizeMb: 3700,
     url: 'https://huggingface.co/litert-community/gemma-4-E4B-it-litert-lm'
         '/resolve/main/gemma-4-E4B-it.litertlm',
-    modelType: ModelType.gemmaIt,
+    modelType: ModelType.gemma4,
     recommendedRam: '6 GB+',
   ),
 ];
@@ -171,7 +173,10 @@ class GemmaService {
 
       await unloadModel();
 
-      await FlutterGemma.installModel(modelType: model.modelType)
+      await FlutterGemma.installModel(
+        modelType: model.modelType,
+        fileType: model.fileType,
+      )
           .fromNetwork(
             model.url,
             token: huggingFaceToken,

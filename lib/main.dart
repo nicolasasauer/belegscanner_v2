@@ -13,30 +13,29 @@ import 'package:flutter_gemma/flutter_gemma.dart';
 
 /// Einstiegspunkt der Bong-Scanner-App.
 void main() {
-  // WidgetsFlutterBinding muss als allererste Zeile initialisiert werden,
-  // bevor andere Plugins oder Platform-Channels genutzt werden.
-  WidgetsFlutterBinding.ensureInitialized();
-
+  // Binding und runApp muessen in derselben Zone laufen.
   try {
     runZonedGuarded(
       () async {
         try {
+          WidgetsFlutterBinding.ensureInitialized();
+
           // Lokalisierungsdaten für Deutsch initialisieren
           await initializeDateFormatting('de_DE');
 
-            // Init background downloader (optional)
-            try {
-              await FlutterDownloader.initialize(debug: false);
-            } catch (e) {
-              debugPrint('[Main] FlutterDownloader init failed: $e');
-            }
+          // Init background downloader (optional)
+          try {
+            await FlutterDownloader.initialize(debug: false);
+          } catch (e) {
+            debugPrint('[Main] FlutterDownloader init failed: $e');
+          }
 
-            // NEU: FlutterGemma initialisieren
-            try {
-              await FlutterGemma.initialize();
-            } catch (e) {
-              debugPrint('[Main] FlutterGemma init failed: $e');
-            }
+          // NEU: FlutterGemma initialisieren
+          try {
+            await FlutterGemma.initialize();
+          } catch (e) {
+            debugPrint('[Main] FlutterGemma init failed: $e');
+          }
           
           // Prüfe geplante Backups beim Start
           unawaited(BackupService.instance.checkAndRunScheduledBackup());
