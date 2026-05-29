@@ -310,6 +310,7 @@ class GemmaService {
       debugPrint('[GemmaService] Inferenz-Fehler: $e\n$st');
       _statusMessage = 'Inferenz fehlgeschlagen: $e';
       await unloadModel();
+      _statusMessage = 'Inferenz fehlgeschlagen: $e';
       return null;
     }
   }
