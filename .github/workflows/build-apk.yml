@@ -101,10 +101,10 @@ jobs:
       - name: Rename APK with version
         run: |
           cp build/app/outputs/flutter-apk/app-release.apk \
-             build/app/outputs/flutter-apk/belegscanner-${{ steps.version.outputs.version }}-release.apk
+             build/app/outputs/flutter-apk/belegscanner-${{ steps.version.outputs.version }}-build${{ github.run_number }}-release.apk
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: belegscanner-${{ steps.version.outputs.version }}-release
-          path: build/app/outputs/flutter-apk/belegscanner-${{ steps.version.outputs.version }}-release.apk
+          name: belegscanner-${{ steps.version.outputs.version }}-build${{ github.run_number }}-release
+          path: build/app/outputs/flutter-apk/belegscanner-${{ steps.version.outputs.version }}-build${{ github.run_number }}-release.apk
