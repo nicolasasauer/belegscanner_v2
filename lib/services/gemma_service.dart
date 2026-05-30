@@ -360,6 +360,95 @@ Geschäftsname:''';
     }
   }
 
+  /// Extrahiert Gesamtbetrag und Einzelpreise aus OCR-Rohtext.
+  ///
+  /// [itemNames] sind die bereits erkannten Artikelnamen (ohne Preis).
+  /// Gibt null zurück bei Fehler oder wenn das Modell nicht bereit ist.
+  Future<({double? total, List<double?> prices})?> extractPricesFromOcr(
+    String rawText,
+    List<String> itemNames,
+  ) async {
+    if (itemNames.isEmpty) return null;
+    final ready = await ensureReady();
+    if (!ready) return null;
+
+    final snippet = rawText.length > 600 ? rawText.substring(0, 600) : rawText;
+    final nameLines = itemNames
+        .asMap()
+        .entries
+        .map((e) => '${e.key + 1}. ${e.value}')
+        .join('\n');
+
+    final prompt = '''Analysiere diesen deutschen Kassenbon.
+Extrahiere den Gesamtbetrag und den Preis für jeden Artikel.
+Antworte NUR mit einem JSON-Objekt. Dezimaltrennzeichen: Punkt.
+
+Artikel:
+$nameLines
+
+Kassenbon:
+$snippet
+
+Beispiel: {"total": 12.95, "prices": [1.29, 2.39, 5.99, 3.28]}
+Antwort:''';
+
+    try {
+      final model = _model!;
+      final session = await model.createSession(
+        temperature: 0.1,
+        randomSeed: 1,
+        topK: 40,
+        topP: 0.9,
+      );
+      await session.addQueryChunk(Message(text: prompt, isUser: true));
+      final response = await session.getResponse();
+      await session.close();
+      debugPrint('[GemmaService] extractPricesFromOcr Antwort: $response');
+      return _parsePriceResponse(response, itemNames.length);
+    } catch (e) {
+      debugPrint('[GemmaService] extractPricesFromOcr Fehler: $e');
+      return null;
+    }
+  }
+
+  ({double? total, List<double?> prices})? _parsePriceResponse(
+    String response,
+    int expectedCount,
+  ) {
+    final jsonMatch =
+        RegExp(r'\{[^{}]*\}', dotAll: true).firstMatch(response);
+    if (jsonMatch == null) return null;
+    try {
+      final raw = jsonMatch.group(0)!;
+
+      final totalMatch =
+          RegExp(r'"total"\s*:\s*([\d.]+)').firstMatch(raw);
+      final total =
+          totalMatch != null ? double.tryParse(totalMatch.group(1)!) : null;
+
+      final pricesMatch =
+          RegExp(r'"prices"\s*:\s*\[([^\]]*)\]').firstMatch(raw);
+      final prices = <double?>[];
+      if (pricesMatch != null) {
+        final parts = pricesMatch.group(1)!.split(',');
+        for (int i = 0; i < expectedCount; i++) {
+          if (i < parts.length) {
+            prices.add(double.tryParse(parts[i].trim()));
+          } else {
+            prices.add(null);
+          }
+        }
+      } else {
+        prices.addAll(List.filled(expectedCount, null));
+      }
+
+      return (total: total, prices: prices);
+    } catch (e) {
+      debugPrint('[GemmaService] _parsePriceResponse Fehler: $e');
+      return null;
+    }
+  }
+
   String _buildPrompt(List<String> items, List<String> categories) {
     final catList = categories.join(', ');
     final itemLines = items

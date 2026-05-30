@@ -552,6 +552,8 @@ class _ReceiptDetailViewState extends State<ReceiptDetailView> {
     setState(() => _isRotating = true);
     await ImageService.rotateFile(path, degrees);
     if (!mounted) return;
+    // Flutter caches FileImage by path — evict so the rotated file is loaded.
+    await FileImage(File(path)).evict();
     setState(() {
       _isRotating = false;
       _imageKey = UniqueKey();

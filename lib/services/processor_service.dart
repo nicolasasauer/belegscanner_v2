@@ -10,10 +10,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 
 import '../models/receipt.dart';
-import 'ai_categorization_service.dart';  // NEU
-import 'category_service.dart';           // NEU
+import 'ai_categorization_service.dart';
+import 'ai_price_service.dart';
+import 'category_service.dart';
 import 'database_service.dart';
-import 'gemma_service.dart';              // NEU
+import 'gemma_service.dart';
 import 'ocr_service.dart';
 
 // ---------------------------------------------------------------------------
@@ -264,14 +265,29 @@ class ProcessorService {
         }
       }
 
+      // ── Schritt 6.7: KI-Preisextraktion (fehlende Preise / Gesamtbetrag) ────
+      double finalAmount = result['amount'] as double;
+      List<String> finalItems = parsedItems;
+      if (fullText.isNotEmpty) {
+        final aiPrices = await const AiPriceService().enrichPrices(
+          rawText: fullText,
+          currentItems: parsedItems,
+          currentTotal: finalAmount,
+        );
+        if (aiPrices != null) {
+          if (aiPrices.total != null) finalAmount = aiPrices.total!;
+          finalItems = aiPrices.items;
+        }
+      }
+
       // ── Schritt 7: Abgeschlossenen Beleg speichern (100 %) ───────────────
       final dateStr = result['date'] as String?;
       final parsedDate = dateStr != null ? DateTime.tryParse(dateStr) : null;
 
       final completed = receipt.copyWith(
         date: parsedDate ?? receipt.date,
-        totalAmount: result['amount'] as double,
-        items: parsedItems,
+        totalAmount: finalAmount,
+        items: finalItems,
         categories: aiResult.categories,
         imagePath: permanentPath ?? tempPath,
         storeName: storeName,
