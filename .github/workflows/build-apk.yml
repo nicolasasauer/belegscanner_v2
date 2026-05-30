@@ -65,6 +65,12 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
+      - name: Cache flutter_gemma native assets
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/flutter_gemma/native
+          key: flutter-gemma-native-litertlm-0.12.0-a-qdrant-0.7.1
+
       - name: Restore Android signing key
         if: ${{ env.ANDROID_KEYSTORE_BASE64 != '' }}
         run: |
