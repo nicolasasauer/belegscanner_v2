@@ -453,6 +453,37 @@ class _ReceiptDetailViewState extends State<ReceiptDetailView> {
                     const Divider(height: 24),
                   ],
 
+                  // KI-Extraktions-Zusammenfassung
+                  if (widget.receipt.aiSummary != null) ...[
+                    Container(
+                      margin: const EdgeInsets.only(bottom: 6),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 7),
+                      decoration: BoxDecoration(
+                        color: Colors.indigo.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                            color: Colors.indigo.shade100, width: 1),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.receipt_long,
+                              size: 15, color: Colors.indigo.shade400),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              widget.receipt.aiSummary!,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.indigo.shade700,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+
                   // KI-Feedback-Banner
                   if (widget.receipt.aiCategorizedCount != null &&
                       widget.receipt.aiCategorizedCount! > 0) ...[
@@ -550,10 +581,11 @@ class _ReceiptDetailViewState extends State<ReceiptDetailView> {
     final path = widget.receipt.imagePath;
     if (path == null) return;
     setState(() => _isRotating = true);
-    await ImageService.rotateFile(path, degrees);
+    final ok = await ImageService.rotateFile(path, degrees);
     if (!mounted) return;
-    // Flutter caches FileImage by path — evict so the rotated file is loaded.
-    await FileImage(File(path)).evict();
+    // FileImage caches by path — a full cache clear ensures the rotated
+    // file is loaded even when the live-image entry isn't evicted individually.
+    if (ok) PaintingBinding.instance.imageCache.clear();
     setState(() {
       _isRotating = false;
       _imageKey = UniqueKey();

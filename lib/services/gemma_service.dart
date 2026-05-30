@@ -360,37 +360,25 @@ Geschäftsname:''';
     }
   }
 
-  /// Extrahiert Gesamtbetrag und Einzelpreise aus OCR-Rohtext.
+  /// Extrahiert Artikelnamen, Einzelpreise und Gesamtbetrag direkt aus
+  /// OCR-Rohtext ohne vorab-extrahierte Namen als Anker.
   ///
-  /// [itemNames] sind die bereits erkannten Artikelnamen (ohne Preis).
+  /// [isRetry]: Zweiter Durchlauf mit Korrekturhinweis bei Summen-Abweichung.
   /// Gibt null zurück bei Fehler oder wenn das Modell nicht bereit ist.
-  Future<({double? total, List<double?> prices})?> extractPricesFromOcr(
-    String rawText,
-    List<String> itemNames,
-  ) async {
-    if (itemNames.isEmpty) return null;
+  Future<({double? total, List<({String name, double? price})> items})?>
+      extractReceiptItems(
+    String rawText, {
+    bool isRetry = false,
+    double? previousCalculated,
+    double? targetTotal,
+  }) async {
     final ready = await ensureReady();
     if (!ready) return null;
 
-    final snippet = rawText.length > 600 ? rawText.substring(0, 600) : rawText;
-    final nameLines = itemNames
-        .asMap()
-        .entries
-        .map((e) => '${e.key + 1}. ${e.value}')
-        .join('\n');
-
-    final prompt = '''Analysiere diesen deutschen Kassenbon.
-Extrahiere den Gesamtbetrag und den Preis für jeden Artikel.
-Antworte NUR mit einem JSON-Objekt. Dezimaltrennzeichen: Punkt.
-
-Artikel:
-$nameLines
-
-Kassenbon:
-$snippet
-
-Beispiel: {"total": 12.95, "prices": [1.29, 2.39, 5.99, 3.28]}
-Antwort:''';
+    final snippet = rawText.length > 900 ? rawText.substring(0, 900) : rawText;
+    final prompt = isRetry
+        ? _buildRetryExtractionPrompt(snippet, previousCalculated!, targetTotal!)
+        : _buildInitialExtractionPrompt(snippet);
 
     try {
       final model = _model!;
@@ -403,48 +391,92 @@ Antwort:''';
       await session.addQueryChunk(Message(text: prompt, isUser: true));
       final response = await session.getResponse();
       await session.close();
-      debugPrint('[GemmaService] extractPricesFromOcr Antwort: $response');
-      return _parsePriceResponse(response, itemNames.length);
+      debugPrint('[GemmaService] extractReceiptItems (retry=$isRetry): $response');
+      return _parseReceiptItemsResponse(response);
     } catch (e) {
-      debugPrint('[GemmaService] extractPricesFromOcr Fehler: $e');
+      debugPrint('[GemmaService] extractReceiptItems Fehler: $e');
       return null;
     }
   }
 
-  ({double? total, List<double?> prices})? _parsePriceResponse(
-    String response,
-    int expectedCount,
+  // Few-shot prompt: flat JSON, short keys, explicit "do not invent" rule.
+  String _buildInitialExtractionPrompt(String text) => '''Extrahiere aus diesem deutschen Kassenbon ALLE Artikel mit Einzelpreis und den Gesamtbetrag.
+Antworte NUR mit einem JSON-Objekt. Erfinde keine Artikel. Dezimaltrennzeichen: Punkt.
+
+Beispiel 1:
+Bon: "Vollmilch 1L A 1,29\\nRed Bull B 2,39\\nSUMME 3,68"
+JSON: {"t":3.68,"i":[{"n":"Vollmilch 1L","p":1.29},{"n":"Red Bull","p":2.39}]}
+
+Beispiel 2:
+Bon: "Colgate Total 3,49\\nZahnbürste 2,99\\ndm Bio Joghurt 0,89\\nGesamt 7,37"
+JSON: {"t":7.37,"i":[{"n":"Colgate Total","p":3.49},{"n":"Zahnbürste","p":2.99},{"n":"dm Bio Joghurt","p":0.89}]}
+
+Bon:
+$text
+JSON:''';
+
+  String _buildRetryExtractionPrompt(
+    String text,
+    double calculated,
+    double target,
   ) {
-    final jsonMatch =
-        RegExp(r'\{[^{}]*\}', dotAll: true).firstMatch(response);
+    final diff = (target - calculated).toStringAsFixed(2);
+    final hint = target > calculated
+        ? 'Ein Artikel oder Preis fehlt möglicherweise.'
+        : 'Ein Preis ist möglicherweise zu hoch.';
+    return '''Deine letzte Extraktion ergab Summe ${calculated.toStringAsFixed(2)}€, der Bon zeigt ${target.toStringAsFixed(2)}€ (Differenz: ${diff}€). $hint
+Prüfe den Bon nochmals genau und korrigiere.
+
+Bon:
+$text
+JSON:''';
+  }
+
+  ({double? total, List<({String name, double? price})> items})?
+      _parseReceiptItemsResponse(String response) {
+    // Strip markdown code fences Gemma occasionally adds
+    final cleaned = response
+        .replaceAll(RegExp(r'```[a-z]*\s*'), '')
+        .replaceAll('```', '')
+        .trim();
+
+    final jsonMatch = RegExp(r'\{.*\}', dotAll: true).firstMatch(cleaned);
     if (jsonMatch == null) return null;
+
     try {
       final raw = jsonMatch.group(0)!;
 
+      // Total: key "t" or "total"
       final totalMatch =
-          RegExp(r'"total"\s*:\s*([\d.]+)').firstMatch(raw);
+          RegExp(r'"(?:t|total)"\s*:\s*([\d.]+)').firstMatch(raw);
       final total =
           totalMatch != null ? double.tryParse(totalMatch.group(1)!) : null;
 
-      final pricesMatch =
-          RegExp(r'"prices"\s*:\s*\[([^\]]*)\]').firstMatch(raw);
-      final prices = <double?>[];
-      if (pricesMatch != null) {
-        final parts = pricesMatch.group(1)!.split(',');
-        for (int i = 0; i < expectedCount; i++) {
-          if (i < parts.length) {
-            prices.add(double.tryParse(parts[i].trim()));
-          } else {
-            prices.add(null);
+      // Items array: key "i" or "items"
+      final arrMatch =
+          RegExp(r'"(?:i|items)"\s*:\s*\[(.*?)\]', dotAll: true)
+              .firstMatch(raw);
+      final items = <({String name, double? price})>[];
+
+      if (arrMatch != null) {
+        for (final m in RegExp(r'\{[^}]+\}').allMatches(arrMatch.group(1)!)) {
+          final obj = m.group(0)!;
+          final nameM = RegExp(r'"n"\s*:\s*"([^"]+)"').firstMatch(obj);
+          final priceM = RegExp(r'"p"\s*:\s*([\d.]+)').firstMatch(obj);
+          final name = nameM?.group(1)?.trim();
+          if (name != null && name.isNotEmpty) {
+            items.add((
+              name: name,
+              price: priceM != null ? double.tryParse(priceM.group(1)!) : null,
+            ));
           }
         }
-      } else {
-        prices.addAll(List.filled(expectedCount, null));
       }
 
-      return (total: total, prices: prices);
+      if (items.isEmpty) return null;
+      return (total: total, items: items);
     } catch (e) {
-      debugPrint('[GemmaService] _parsePriceResponse Fehler: $e');
+      debugPrint('[GemmaService] _parseReceiptItemsResponse Fehler: $e');
       return null;
     }
   }

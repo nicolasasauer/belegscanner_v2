@@ -11,7 +11,7 @@ import 'package:uuid/uuid.dart';
 
 import '../models/receipt.dart';
 import 'ai_categorization_service.dart';
-import 'ai_price_service.dart';
+import 'ai_receipt_extraction_service.dart';
 import 'category_service.dart';
 import 'database_service.dart';
 import 'gemma_service.dart';
@@ -239,13 +239,38 @@ class ProcessorService {
 
       final parsedItems = List<String>.from(result['items'] as List);
       final keywordCategories = List<String>.from(result['categories'] as List);
+      double finalAmount = result['amount'] as double;
+
+      // ── Schritt 6.4: KI-Vollextraktion (Artikel + Preise, vor Kategorisierung)
+      await _updateProgress(receipt, 0.70);
+      AiExtractionResult? aiExtraction;
+      List<String> itemsForCategorization = parsedItems;
+      if (fullText.isNotEmpty) {
+        aiExtraction = await const AiReceiptExtractionService()
+            .extractFromRawText(
+          rawText: fullText,
+          regexTotal: finalAmount,
+        );
+        if (aiExtraction != null) {
+          itemsForCategorization = aiExtraction.items;
+          if (aiExtraction.total != null) finalAmount = aiExtraction.total!;
+          debugPrint('[ProcessorService] KI-Extraktion (${aiExtraction.rounds} Runden): '
+              '${aiExtraction.summary}');
+        }
+      }
 
       // ── Schritt 6.5: KI-Kategorisierung (75 %) ───────────────────────────
       await _updateProgress(receipt, 0.75);
 
+      // Wenn KI Artikel extrahiert hat, haben wir keine Keyword-Kategorien
+      // für diese → 'Sonstiges' als Basis, KI-Kategorisierung weist zu.
+      final baseCategories = aiExtraction != null
+          ? List<String>.filled(itemsForCategorization.length, 'Sonstiges')
+          : keywordCategories;
+
       final aiResult = await _aiService.categorize(
-        items: parsedItems,
-        existingCategories: keywordCategories,
+        items: itemsForCategorization,
+        existingCategories: baseCategories,
         availableCategories: CategoryService.availableCategories,
       );
 
@@ -258,25 +283,11 @@ class ProcessorService {
       if ((storeName == null || storeName.trim().length < 3) &&
           fullText.isNotEmpty &&
           GemmaService.instance.isEnabled) {
-        final aiStoreName = await GemmaService.instance.extractStoreName(fullText);
+        final aiStoreName =
+            await GemmaService.instance.extractStoreName(fullText);
         if (aiStoreName != null) {
           debugPrint('[ProcessorService] KI-Händlername: "$aiStoreName"');
           storeName = aiStoreName;
-        }
-      }
-
-      // ── Schritt 6.7: KI-Preisextraktion (fehlende Preise / Gesamtbetrag) ────
-      double finalAmount = result['amount'] as double;
-      List<String> finalItems = parsedItems;
-      if (fullText.isNotEmpty) {
-        final aiPrices = await const AiPriceService().enrichPrices(
-          rawText: fullText,
-          currentItems: parsedItems,
-          currentTotal: finalAmount,
-        );
-        if (aiPrices != null) {
-          if (aiPrices.total != null) finalAmount = aiPrices.total!;
-          finalItems = aiPrices.items;
         }
       }
 
@@ -287,7 +298,7 @@ class ProcessorService {
       final completed = receipt.copyWith(
         date: parsedDate ?? receipt.date,
         totalAmount: finalAmount,
-        items: finalItems,
+        items: itemsForCategorization,
         categories: aiResult.categories,
         imagePath: permanentPath ?? tempPath,
         storeName: storeName,
@@ -297,6 +308,7 @@ class ProcessorService {
         progress: 1.0,
         fileHash: hash,
         aiCategorizedCount: aiResult.aiChangedCount > 0 ? aiResult.aiChangedCount : null,
+        aiSummary: aiExtraction?.summary,
       );
 
       await _databaseService.updateReceipt(completed);

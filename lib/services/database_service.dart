@@ -51,7 +51,7 @@ class DatabaseService {
   /// Tabelle für händlerspezifische Parsing-Profile (Lern-Loop).
   static const _vendorProfilesTable = 'vendor_profiles';
 
-  static const _dbVersion = 12;
+  static const _dbVersion = 13;
 
   Database? _db;
 
@@ -113,7 +113,8 @@ class DatabaseService {
             status TEXT NOT NULL DEFAULT 'completed',
             progress REAL NOT NULL DEFAULT 1.0,
             fileHash TEXT,
-            aiCategorizedCount INTEGER
+            aiCategorizedCount INTEGER,
+            aiSummary TEXT
           )
         ''');
         // FTS4 Volltextsuche-Tabelle für rawText/items/storeName
@@ -269,6 +270,11 @@ class DatabaseService {
         if (oldVersion < 12) {
           await db.execute(
             'ALTER TABLE $_tableName ADD COLUMN aiCategorizedCount INTEGER',
+          );
+        }
+        if (oldVersion < 13) {
+          await db.execute(
+            'ALTER TABLE $_tableName ADD COLUMN aiSummary TEXT',
           );
         }
       },

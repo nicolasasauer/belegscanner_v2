@@ -69,6 +69,12 @@ class Receipt {
   /// mit einer älteren App-Version erstellt wurde.
   final int? aiCategorizedCount;
 
+  /// Kurze KI-Zusammenfassung der Extraktion (1–2 Sätze).
+  ///
+  /// Enthält Anzahl erkannter Artikel, Gesamtbetrag und ggf. ob eine zweite
+  /// Runde notwendig war. `null` wenn KI nicht verwendet wurde.
+  final String? aiSummary;
+
   const Receipt({
     required this.id,
     required this.date,
@@ -83,6 +89,7 @@ class Receipt {
     this.progress = 1.0,
     this.fileHash,
     this.aiCategorizedCount,
+    this.aiSummary,
   });
 
   /// Gibt die Kategorie für den Artikel an Index [i] zurück.
@@ -107,6 +114,7 @@ class Receipt {
     double? progress,
     String? fileHash,
     int? aiCategorizedCount,
+    String? aiSummary,
   }) {
     return Receipt(
       id: id ?? this.id,
@@ -122,6 +130,7 @@ class Receipt {
       progress: progress ?? this.progress,
       fileHash: fileHash ?? this.fileHash,
       aiCategorizedCount: aiCategorizedCount ?? this.aiCategorizedCount,
+      aiSummary: aiSummary ?? this.aiSummary,
     );
   }
 
@@ -144,6 +153,7 @@ class Receipt {
       'progress': progress,
       'fileHash': fileHash,
       'aiCategorizedCount': aiCategorizedCount,
+      'aiSummary': aiSummary,
     };
   }
 
@@ -174,6 +184,7 @@ class Receipt {
       progress: (map['progress'] as num?)?.toDouble() ?? 1.0,
       fileHash: map['fileHash'] as String?,
       aiCategorizedCount: map['aiCategorizedCount'] as int?,
+      aiSummary: map['aiSummary'] as String?,
     );
   }
 
