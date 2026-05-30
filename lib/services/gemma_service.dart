@@ -29,6 +29,8 @@ class ModelDefinition {
   final ModelFileType fileType;
   final String recommendedRam;
   final bool requiresHfToken;
+  // Must match the KV-cache size compiled into the model file (ekv<N> suffix in filename).
+  final int maxTokens;
 
   const ModelDefinition({
     required this.id,
@@ -41,6 +43,7 @@ class ModelDefinition {
     this.fileType = ModelFileType.litertlm,
     required this.recommendedRam,
     this.requiresHfToken = true,
+    this.maxTokens = 4096,
   });
 }
 
@@ -60,6 +63,7 @@ const List<ModelDefinition> kAvailableModels = [
         '/resolve/main/gemma3-270m-it-q8.litertlm',
     modelType: ModelType.gemmaIt,
     recommendedRam: '2 GB+',
+    maxTokens: 1024,
   ),
   ModelDefinition(
     id: 'gemma3-1b',
@@ -72,6 +76,7 @@ const List<ModelDefinition> kAvailableModels = [
         '/resolve/main/Gemma3-1B-IT_multi-prefill-seq_q4_ekv4096.litertlm',
     modelType: ModelType.gemmaIt,
     recommendedRam: '3 GB+',
+    maxTokens: 4096, // ekv4096 in filename = compiled KV-cache size
   ),
   ModelDefinition(
     id: 'gemma4-e2b',
@@ -84,6 +89,7 @@ const List<ModelDefinition> kAvailableModels = [
         '/resolve/main/gemma-4-E2B-it.litertlm',
     modelType: ModelType.gemma4,
     recommendedRam: '4 GB+',
+    maxTokens: 4096,
   ),
   ModelDefinition(
     id: 'gemma4-e4b',
@@ -96,6 +102,7 @@ const List<ModelDefinition> kAvailableModels = [
         '/resolve/main/gemma-4-E4B-it.litertlm',
     modelType: ModelType.gemma4,
     recommendedRam: '6 GB+',
+    maxTokens: 4096,
   ),
 ];
 
@@ -231,7 +238,7 @@ class GemmaService {
       await unloadModel();
 
       _model = await FlutterGemma.getActiveModel(
-        maxTokens: 512,
+        maxTokens: model.maxTokens,
         preferredBackend: PreferredBackend.cpu,
         supportAudio: false,
       );
@@ -299,7 +306,6 @@ class GemmaService {
         temperature: temperature,
         randomSeed: 1,
         topK: 1,
-        topP: 0.7,
       );
       await session.addQueryChunk(Message(text: prompt, isUser: true));
       final response = await session.getResponse();
@@ -308,7 +314,6 @@ class GemmaService {
       return _parseResponse(response, items.length, availableCategories);
     } catch (e, st) {
       debugPrint('[GemmaService] Inferenz-Fehler: $e\n$st');
-      _statusMessage = 'Inferenz fehlgeschlagen: $e';
       await unloadModel();
       _statusMessage = 'Inferenz fehlgeschlagen: $e';
       return null;
@@ -324,8 +329,8 @@ class GemmaService {
     if (!ready) return null;
 
     final snippet = rawText.length > 400 ? rawText.substring(0, 400) : rawText;
-    final prompt = '''Du siehst den Anfang eines deutschen Kassenbons. '
-Nenne NUR den Namen des Geschäfts (z. B. "Billa", "dm", "Lidl"). '
+    final prompt = '''Du siehst den Anfang eines deutschen Kassenbons.
+Nenne NUR den Namen des Geschäfts (z. B. "Billa", "dm", "Lidl").
 Wenn du ihn nicht erkennst, antworte mit "?".
 
 Kassenbon:
@@ -336,10 +341,9 @@ Geschäftsname:''';
     try {
       final model = _model!;
       final session = await model.createSession(
-        temperature: 0.0,
+        temperature: 0.1,
         randomSeed: 1,
         topK: 1,
-        topP: 0.9,
       );
       await session.addQueryChunk(Message(text: prompt, isUser: true));
       final response = await session.getResponse();
