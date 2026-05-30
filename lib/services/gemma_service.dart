@@ -305,7 +305,8 @@ class GemmaService {
       final session = await model.createSession(
         temperature: temperature,
         randomSeed: 1,
-        topK: 1,
+        topK: 40,
+        topP: 0.9,
       );
       await session.addQueryChunk(Message(text: prompt, isUser: true));
       final response = await session.getResponse();
@@ -343,7 +344,8 @@ Geschäftsname:''';
       final session = await model.createSession(
         temperature: 0.1,
         randomSeed: 1,
-        topK: 1,
+        topK: 40,
+        topP: 0.9,
       );
       await session.addQueryChunk(Message(text: prompt, isUser: true));
       final response = await session.getResponse();
