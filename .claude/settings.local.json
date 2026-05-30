@@ -3,7 +3,10 @@
     "allow": [
       "Bash(flutter pub *)",
       "Bash(flutter clean *)",
-      "Bash(flutter build *)"
+      "Bash(flutter build *)",
+      "WebSearch",
+      "WebFetch(domain:github.com)",
+      "PowerShell($hookPath = \"$env:APPDATA\\\\Pub\\\\Cache\\\\hosted\\\\pub.dev\\\\flutter_gemma-0.16.2\\\\hook\\\\build.dart\"; if \\(Test-Path $hookPath\\) { Get-Content $hookPath } else { \"Not found at $hookPath\" })"
     ]
   }
 }
