@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -59,6 +60,8 @@ class _ReceiptDetailViewState extends State<ReceiptDetailView> {
   bool _isSaving = false;
   bool _isRotating = false;
   Key _imageKey = UniqueKey();
+  // Holds freshly-loaded bytes after rotation — bypasses FileImage cache entirely.
+  Uint8List? _rotatedBytes;
 
   /// Gibt an, ob die Detailansicht im Bearbeitungs-Modus ist.
   bool _isEditing = false;
@@ -583,13 +586,18 @@ class _ReceiptDetailViewState extends State<ReceiptDetailView> {
     setState(() => _isRotating = true);
     final ok = await ImageService.rotateFile(path, degrees);
     if (!mounted) return;
-    // FileImage caches by path — a full cache clear ensures the rotated
-    // file is loaded even when the live-image entry isn't evicted individually.
-    if (ok) PaintingBinding.instance.imageCache.clear();
-    setState(() {
-      _isRotating = false;
-      _imageKey = UniqueKey();
-    });
+    if (ok) {
+      // Load fresh bytes directly from disk — bypasses FileImage cache entirely.
+      // Image.memory() is used for display after rotation; no cache involved.
+      final freshBytes = await File(path).readAsBytes();
+      if (!mounted) return;
+      setState(() {
+        _isRotating = false;
+        _rotatedBytes = freshBytes;
+      });
+    } else {
+      setState(() => _isRotating = false);
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -663,14 +671,22 @@ class _ReceiptDetailViewState extends State<ReceiptDetailView> {
                     width: double.infinity,
                     child: Center(child: CircularProgressIndicator()),
                   )
-                : Image.file(
-                    File(path),
-                    key: _imageKey,
-                    height: 160,
-                    width: double.infinity,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => const SizedBox.shrink(),
-                  ),
+                : _rotatedBytes != null
+                    ? Image.memory(
+                        _rotatedBytes!,
+                        height: 160,
+                        width: double.infinity,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                      )
+                    : Image.file(
+                        File(path),
+                        key: _imageKey,
+                        height: 160,
+                        width: double.infinity,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                      ),
           ),
           // Zoom-Icon rechts unten
           Container(

@@ -24,6 +24,7 @@ class _ModelSetupPageState extends State<ModelSetupPage> {
   int _downloadProgress = 0;
   String _downloadingModelId = '';
   bool _showToken = false;
+  bool _isTestRunning = false;
   late final TextEditingController _tokenController;
 
   @override
@@ -116,12 +117,20 @@ class _ModelSetupPageState extends State<ModelSetupPage> {
 
     if (!mounted) return;
     if (ok) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('✓ ${model.name} installiert und bereit!'),
-          backgroundColor: Colors.green,
-        ),
-      );
+      // Automatically enable AI after a successful installation so the user
+      // doesn't have to flip the toggle manually.
+      if (!_gemma.isEnabled) {
+        setState(() => _gemma.isEnabled = true);
+        await _gemma.saveSettings();
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('✓ ${model.name} installiert und aktiviert!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
     } else {
       _showErrorDialog(
         'Installation fehlgeschlagen',
@@ -174,8 +183,16 @@ class _ModelSetupPageState extends State<ModelSetupPage> {
   }
 
   Future<void> _testInference() async {
-    setState(() {});
-    final testItems = [
+    setState(() => _isTestRunning = true);
+
+    // Show a non-dismissible progress dialog so the user knows the AI is working.
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const _InferenceLoadingDialog(),
+    );
+
+    const testItems = [
       'Vollmilch 3,5% 1L',
       'Red Bull Sugarfree 250ml',
       'Colgate Zahnpasta Total',
@@ -185,7 +202,10 @@ class _ModelSetupPageState extends State<ModelSetupPage> {
       testItems,
       ['Lebensmittel', 'Getränke', 'Drogerie', 'Pfand', 'Sonstiges'],
     );
+
+    setState(() => _isTestRunning = false);
     if (!mounted) return;
+    Navigator.of(context).pop(); // close loading dialog
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -356,11 +376,19 @@ class _ModelSetupPageState extends State<ModelSetupPage> {
                 if (_gemma.isReady) ...[
                   const Divider(height: 1, indent: 16, endIndent: 16),
                   ListTile(
-                    leading: const Icon(Icons.play_circle_outline,
-                        color: Colors.green),
+                    leading: _isTestRunning
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.play_circle_outline,
+                            color: Colors.green),
                     title: const Text('Inferenz testen'),
-                    subtitle: const Text('4 Musterartikel kategorisieren'),
-                    onTap: _testInference,
+                    subtitle: Text(_isTestRunning
+                        ? 'KI arbeitet …'
+                        : '4 Musterartikel kategorisieren'),
+                    onTap: _isTestRunning ? null : _testInference,
                   ),
                 ],
                 const Divider(height: 1, indent: 16, endIndent: 16),
@@ -686,6 +714,46 @@ class _ModelSetupPageState extends State<ModelSetupPage> {
           ...children,
           const SizedBox(height: 8),
         ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Lade-Dialog während KI-Inferenz
+// ---------------------------------------------------------------------------
+
+class _InferenceLoadingDialog extends StatelessWidget {
+  const _InferenceLoadingDialog();
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      content: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Row(
+          children: [
+            const CircularProgressIndicator(),
+            const SizedBox(width: 20),
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'KI kategorisiert …',
+                    style: Theme.of(context).textTheme.titleSmall,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Das lokale Modell arbeitet im Hintergrund.',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
