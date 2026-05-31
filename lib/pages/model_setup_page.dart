@@ -25,6 +25,7 @@ class _ModelSetupPageState extends State<ModelSetupPage> {
   String _downloadingModelId = '';
   bool _showToken = false;
   bool _isTestRunning = false;
+  bool _isTogglingEnabled = false;
   late final TextEditingController _tokenController;
 
   @override
@@ -140,18 +141,28 @@ class _ModelSetupPageState extends State<ModelSetupPage> {
   }
 
   Future<void> _toggleEnabled(bool value) async {
-    setState(() => _gemma.isEnabled = value);
+    setState(() {
+      _gemma.isEnabled = value;
+      _isTogglingEnabled = true;
+    });
     await _gemma.saveSettings();
     if (value) {
       final ok = await _gemma.ensureReady();
-      if (mounted) setState(() {});
       if (!ok && mounted) {
-        _showErrorDialog('Modell konnte nicht geladen werden',
-            _gemma.statusMessage);
+        // Revert toggle – don't leave it stuck in "enabled but broken" state.
+        setState(() {
+          _gemma.isEnabled = false;
+          _isTogglingEnabled = false;
+        });
+        await _gemma.saveSettings();
+        _showErrorDialog(
+            'Modell konnte nicht geladen werden', _gemma.statusMessage);
+      } else if (mounted) {
+        setState(() => _isTogglingEnabled = false);
       }
     } else {
       await _gemma.unloadModel();
-      if (mounted) setState(() {});
+      if (mounted) setState(() => _isTogglingEnabled = false);
     }
   }
 
@@ -365,13 +376,26 @@ class _ModelSetupPageState extends State<ModelSetupPage> {
               children: [
                 SwitchListTile(
                   title: const Text('Lokal aktivieren'),
-                  subtitle: Text(
-                    _gemma.isEnabled
-                        ? 'KI analysiert Artikel nach dem Scan.'
-                        : 'Nur Keyword-Kategorisierung aktiv.',
-                  ),
+                  subtitle: _isTogglingEnabled
+                      ? const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            SizedBox(
+                              width: 12,
+                              height: 12,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                            SizedBox(width: 8),
+                            Text('Wird geladen…'),
+                          ],
+                        )
+                      : Text(
+                          _gemma.isEnabled
+                              ? 'KI analysiert Artikel nach dem Scan.'
+                              : 'Nur Keyword-Kategorisierung aktiv.',
+                        ),
                   value: _gemma.isEnabled,
-                  onChanged: _toggleEnabled,
+                  onChanged: _isTogglingEnabled ? null : _toggleEnabled,
                 ),
                 if (_gemma.isReady) ...[
                   const Divider(height: 1, indent: 16, endIndent: 16),

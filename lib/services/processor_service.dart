@@ -15,6 +15,7 @@ import 'ai_receipt_extraction_service.dart';
 import 'category_service.dart';
 import 'database_service.dart';
 import 'gemma_service.dart';
+import 'image_service.dart';
 import 'ocr_service.dart';
 
 // ---------------------------------------------------------------------------
@@ -159,6 +160,10 @@ class ProcessorService {
 
       // ── Schritt 3: Fortschritt aktualisieren (20 %) ───────────────────────
       await _updateProgress(receipt, 0.20);
+
+      // ── Schritt 3b: Bild auto-orientieren (EXIF + Querformat→Hochformat) ──
+      // Muss vor OCR erfolgen, damit ML Kit und die KI das Bild aufrecht sehen.
+      await ImageService.autoOrientToPortrait(tempPath);
 
       // ── Schritt 4: OCR auf dem Haupt-Isolate ─────────────────────────────
       final inputImage = InputImage.fromFilePath(tempPath);

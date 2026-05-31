@@ -273,6 +273,18 @@ class GemmaService {
 
   Future<void> removeModel() async {
     await unloadModel();
+    // Delete the model files + flutter_gemma registry entries so no zombie data remains.
+    try {
+      final manager = FlutterGemmaPlugin.instance.modelManager;
+      final spec = manager.activeInferenceModel;
+      if (spec != null) {
+        await manager.deleteModel(spec);
+      }
+      await manager.performCleanup();
+      debugPrint('[GemmaService] flutter_gemma Modell-Dateien bereinigt.');
+    } catch (e) {
+      debugPrint('[GemmaService] Fehler beim Bereinigen der Modell-Dateien: $e');
+    }
     installedModelId = null;
     isEnabled = false;
     await saveSettings();
